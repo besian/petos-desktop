@@ -87,7 +87,7 @@ export function Client() {
           <div style={st('background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--card-shadow);padding:20px')}>
             <div style={st('display:flex;align-items:center;justify-content:space-between;margin-bottom:14px')}>
               <div style={st('font-size:14px;font-weight:700;color:var(--fg-primary)')}>Pets ({pets.length})</div>
-              <button onClick={() => navigate('/pets')} style={st('display:inline-flex;align-items:center;gap:5px;border:none;background:transparent;color:var(--fg-brand);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer')}><PlusIcon size={13} />Add pet</button>
+              <button onClick={() => navigate(`/pets/new?clientId=${client.id}`)} style={st('display:inline-flex;align-items:center;gap:5px;border:none;background:transparent;color:var(--fg-brand);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer')}><PlusIcon size={13} />Add pet</button>
             </div>
             {pets.length === 0 ? <div style={st('font-size:13px;color:var(--fg-tertiary)')}>No pets on file yet.</div> : (
               <div style={st('display:flex;flex-direction:column;gap:10px')}>

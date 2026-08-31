@@ -59,7 +59,7 @@ export function TopBar() {
         <SparkleIcon />Copilot
       </button>
       <button
-        onClick={() => actions.openNewWalk()}
+        onClick={() => navigate('/schedule/new')}
         style={st('border:none;background:var(--brand-primary);color:var(--brand-on-primary);font-family:inherit;font-size:13.5px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow-ring-primary);flex:none')}
       >
         + New walk

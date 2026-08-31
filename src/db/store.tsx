@@ -1,8 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { DB, Pet, Client, TeamMember, Walk, Invoice, Report, Settings, InvoiceItem } from './types';
 import { buildSeed } from './seed';
 import { useAuth } from '../auth/store';
 import { todayISO } from './dates';
+import { fetchDogPhoto, fetchDogPhotos } from '../lib/dogPhoto';
 
 function dbKey(accountId: string) {
   return 'petos.db.' + accountId;
@@ -69,6 +70,29 @@ export function DBProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (accountId) saveDB(accountId, db);
   }, [accountId, db]);
+
+  const fetchingRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!accountId) return;
+    const petsNeeding = db.pets.filter((p) => !p.photo && !fetchingRef.current.has('pet:' + p.id));
+    for (const p of petsNeeding) {
+      fetchingRef.current.add('pet:' + p.id);
+      fetchDogPhoto(p.breed).then((url) => {
+        if (url) setDb((s) => ({ ...s, pets: s.pets.map((pp) => (pp.id === p.id ? { ...pp, photo: url } : pp)) }));
+        else fetchingRef.current.delete('pet:' + p.id);
+      });
+    }
+    const reportsNeeding = db.reports.filter((r) => r.include.photos && (!r.photos || r.photos.length < 3) && !fetchingRef.current.has('report:' + r.id));
+    for (const r of reportsNeeding) {
+      fetchingRef.current.add('report:' + r.id);
+      const pet = db.pets.find((p) => p.id === r.petId);
+      fetchDogPhotos(3, pet?.breed).then((urls) => {
+        if (urls.length) setDb((s) => ({ ...s, reports: s.reports.map((rr) => (rr.id === r.id ? { ...rr, photos: urls } : rr)) }));
+        else fetchingRef.current.delete('report:' + r.id);
+      });
+    }
+  }, [accountId, db.pets, db.reports]);
 
   const addPet = useCallback((pet: Omit<Pet, 'id' | 'createdAt'>) => {
     const created: Pet = { ...pet, id: newId('pet'), createdAt: todayISO() };

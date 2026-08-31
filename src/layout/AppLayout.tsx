@@ -7,7 +7,6 @@ import { PageHeaderProvider } from '../ui/pageHeader';
 import { Sidebar } from '../components/Sidebar';
 import { TopBar } from '../components/TopBar';
 import { CopilotPanel } from '../components/CopilotPanel';
-import { NewWalkModal } from '../components/NewWalkModal';
 import { Toast } from '../components/Toast';
 
 function Shell() {
@@ -39,7 +38,6 @@ function Shell() {
           <CopilotPanel />
         </div>
       </div>
-      <NewWalkModal />
       <Toast />
     </div>
   );

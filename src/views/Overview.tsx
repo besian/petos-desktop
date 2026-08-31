@@ -12,27 +12,72 @@ const btnStyle = 'width:26px;height:26px;border-radius:7px;border:none;font-size
 const widgetLabels: Record<string, string> = { briefing: 'Morning briefing', kpis: 'Key metrics', operations: "Today's operations", revenue: 'Revenue', attention: 'Needs attention', team: 'Team activity', weather: 'This week', notes: 'Quick notes' };
 const spanMap: Record<string, string> = { briefing: 'grid-column:span 12', kpis: 'grid-column:span 12', operations: 'grid-column:span 7;grid-row:span 2', revenue: 'grid-column:span 5', attention: 'grid-column:span 5', team: 'grid-column:span 4', weather: 'grid-column:span 4', notes: 'grid-column:span 4' };
 
-function WidgetEditControls({ id, order, editMode, onMove, onHide }: { id: string; order: string[]; editMode: boolean; onMove: (id: string, dir: 1 | -1) => void; onHide: (id: string) => void }) {
+function DragHandle() {
+  return (
+    <span style={st('display:inline-flex;flex-direction:column;flex-wrap:wrap;gap:2px;width:11px;height:16px;align-content:space-between')}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <span key={i} style={st('width:3px;height:3px;border-radius:999px;background:currentColor;opacity:.6')} />
+      ))}
+    </span>
+  );
+}
+
+function WidgetEditControls({
+  id, editMode, onHide, onDragStart, onDragEnd, isDragging,
+}: {
+  id: string;
+  editMode: boolean;
+  onHide: (id: string) => void;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+  isDragging: boolean;
+}) {
   if (!editMode) return null;
-  const i = order.indexOf(id);
-  const upStyle = `${btnStyle};background:var(--bg-tertiary);color:var(--fg-secondary);${i === 0 ? 'opacity:.35;pointer-events:none' : ''}`;
-  const downStyle = `${btnStyle};background:var(--bg-tertiary);color:var(--fg-secondary);${i === order.length - 1 ? 'opacity:.35;pointer-events:none' : ''}`;
   const hideStyle = `${btnStyle};background:var(--color-error-50);color:var(--color-error-700)`;
+  const handleStyle = `${btnStyle};background:var(--bg-tertiary);color:var(--fg-secondary);cursor:grab;${isDragging ? 'cursor:grabbing' : ''}`;
   return (
     <div style={st('position:absolute;top:-13px;right:16px;display:flex;gap:4px;background:var(--bg-primary);border:1px solid var(--border-default);border-radius:9px;padding:3px;box-shadow:var(--shadow-sm);z-index:5')}>
-      <button onClick={() => onMove(id, -1)} style={st(upStyle)}>↑</button>
-      <button onClick={() => onMove(id, 1)} style={st(downStyle)}>↓</button>
+      <span
+        draggable
+        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(id); }}
+        onDragEnd={onDragEnd}
+        style={st(handleStyle)}
+        title="Drag to reorder"
+      >
+        <DragHandle />
+      </span>
       <button onClick={() => onHide(id)} style={st(hideStyle)}>✕</button>
     </div>
   );
 }
 
-function Widget({ id, order, editMode, onMove, onHide, children }: { id: string; order: string[]; editMode: boolean; onMove: (id: string, dir: 1 | -1) => void; onHide: (id: string) => void; children: ReactNode }) {
+function Widget({
+  id, order, editMode, onHide, draggedId, dragOverId, onDragStart, onDragEnd, onDragEnter, onDrop, children,
+}: {
+  id: string;
+  order: string[];
+  editMode: boolean;
+  onHide: (id: string) => void;
+  draggedId: string | null;
+  dragOverId: string | null;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+  onDragEnter: (id: string) => void;
+  onDrop: (id: string) => void;
+  children: ReactNode;
+}) {
   const i = order.indexOf(id);
-  const wrapStyle = `position:relative;order:${i};${spanMap[id]};${editMode ? ';outline:2px dashed var(--border-default);outline-offset:8px;border-radius:16px' : ''}`;
+  const isDragging = draggedId === id;
+  const isDragOver = editMode && dragOverId === id && draggedId !== null && draggedId !== id;
+  const wrapStyle = `position:relative;order:${i};${spanMap[id]};transition:opacity .15s var(--ease-out),transform .15s var(--ease-out);${editMode ? ';outline:2px dashed ' + (isDragOver ? 'var(--border-brand)' : 'var(--border-default)') + ';outline-offset:8px;border-radius:16px' : ''}${isDragging ? ';opacity:.4' : ''}`;
   return (
-    <div style={st(wrapStyle)}>
-      <WidgetEditControls id={id} order={order} editMode={editMode} onMove={onMove} onHide={onHide} />
+    <div
+      style={st(wrapStyle)}
+      onDragOver={editMode ? (e) => e.preventDefault() : undefined}
+      onDragEnter={editMode ? () => onDragEnter(id) : undefined}
+      onDrop={editMode ? (e) => { e.preventDefault(); onDrop(id); } : undefined}
+    >
+      <WidgetEditControls id={id} editMode={editMode} onHide={onHide} onDragStart={onDragStart} onDragEnd={onDragEnd} isDragging={isDragging} />
       {children}
     </div>
   );
@@ -44,6 +89,23 @@ export function Overview() {
   const { db, addNote, removeNote } = useDB();
   const { overviewEdit: editMode, overviewOrder: order, overviewHidden: hidden } = state;
   const [noteDraft, setNoteDraft] = useState('');
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleDragStart = (id: string) => setDraggedId(id);
+  const handleDragEnd = () => { setDraggedId(null); setDragOverId(null); };
+  const handleDragEnter = (id: string) => setDragOverId(id);
+  const handleDrop = (targetId: string) => {
+    if (!draggedId || draggedId === targetId) { handleDragEnd(); return; }
+    const from = order.indexOf(draggedId);
+    const to = order.indexOf(targetId);
+    if (from === -1 || to === -1) { handleDragEnd(); return; }
+    const next = [...order];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    actions.setOverviewOrder(next);
+    handleDragEnd();
+  };
 
   const today = todayISO();
   const clientById = new Map(db.clients.map((c) => [c.id, c]));
@@ -112,7 +174,7 @@ export function Overview() {
   return (
     <div style={st('animation:vIn .3s var(--ease-out)')}>
       <div style={st('display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:14px')}>
-        {editMode ? <span style={st('font-size:12.5px;color:var(--fg-tertiary);margin-right:auto')}>Drag with the arrows to reorder, hide cards you don't need</span> : null}
+        {editMode ? <span style={st('font-size:12.5px;color:var(--fg-tertiary);margin-right:auto')}>Drag a card by its handle to reorder, hide cards you don't need</span> : null}
         <button
           onClick={actions.toggleOverviewEdit}
           style={st(`font-family:inherit;font-size:13px;font-weight:600;padding:8px 15px;border-radius:10px;cursor:pointer;border:1px solid ${editMode ? 'transparent' : 'var(--border-default)'};background:${editMode ? 'var(--brand-primary)' : 'var(--bg-primary)'};color:${editMode ? 'var(--brand-on-primary)' : 'var(--fg-secondary)'}`)}
@@ -134,7 +196,7 @@ export function Overview() {
 
       <div style={st('display:grid;grid-template-columns:repeat(12,1fr);grid-auto-flow:dense;gap:18px')}>
         {hidden.includes('briefing') ? null : (
-          <Widget id="briefing" order={order} editMode={editMode} onMove={actions.moveWidget} onHide={actions.hideWidget}>
+          <Widget id="briefing" order={order} editMode={editMode} onHide={actions.hideWidget} draggedId={draggedId} dragOverId={dragOverId} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragEnter={handleDragEnter} onDrop={handleDrop}>
             <div style={st('display:flex;gap:13px;align-items:flex-start;background:var(--bg-brand-subtle);border:1px solid var(--border-brand);border-radius:16px;padding:16px 18px')}>
               <span style={st('color:var(--fg-brand);flex:none;margin-top:1px')}><SparkleIcon size={20} /></span>
               <div style={st('flex:1')}>
@@ -147,7 +209,7 @@ export function Overview() {
         )}
 
         {hidden.includes('kpis') ? null : (
-          <Widget id="kpis" order={order} editMode={editMode} onMove={actions.moveWidget} onHide={actions.hideWidget}>
+          <Widget id="kpis" order={order} editMode={editMode} onHide={actions.hideWidget} draggedId={draggedId} dragOverId={dragOverId} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragEnter={handleDragEnter} onDrop={handleDrop}>
             <div style={st('display:grid;grid-template-columns:repeat(4,1fr);gap:14px')}>
               {kpis.map((k) => (
                 <button key={k.label} onClick={k.go} style={st('text-align:left;background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:16px;padding:16px 17px;box-shadow:var(--card-shadow);cursor:pointer;font-family:inherit')}>
@@ -164,7 +226,7 @@ export function Overview() {
         )}
 
         {hidden.includes('operations') ? null : (
-          <Widget id="operations" order={order} editMode={editMode} onMove={actions.moveWidget} onHide={actions.hideWidget}>
+          <Widget id="operations" order={order} editMode={editMode} onHide={actions.hideWidget} draggedId={draggedId} dragOverId={dragOverId} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragEnter={handleDragEnter} onDrop={handleDrop}>
             <div style={st('background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--card-shadow);overflow:hidden')}>
               <div style={st('display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border-subtle)')}>
                 <div>
@@ -197,7 +259,7 @@ export function Overview() {
         )}
 
         {hidden.includes('revenue') ? null : (
-          <Widget id="revenue" order={order} editMode={editMode} onMove={actions.moveWidget} onHide={actions.hideWidget}>
+          <Widget id="revenue" order={order} editMode={editMode} onHide={actions.hideWidget} draggedId={draggedId} dragOverId={dragOverId} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragEnter={handleDragEnter} onDrop={handleDrop}>
             <div style={st('background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--card-shadow);padding:18px;height:100%;box-sizing:border-box')}>
               <div style={st('font-size:15px;font-weight:700;color:var(--fg-primary);margin-bottom:3px')}>Revenue · this month</div>
               <div style={st('font-size:12.5px;color:var(--fg-tertiary);margin-bottom:16px')}>£{monthCollected.toFixed(0)} collected of £{monthExpected.toFixed(0)} expected</div>
@@ -210,7 +272,7 @@ export function Overview() {
         )}
 
         {hidden.includes('attention') ? null : (
-          <Widget id="attention" order={order} editMode={editMode} onMove={actions.moveWidget} onHide={actions.hideWidget}>
+          <Widget id="attention" order={order} editMode={editMode} onHide={actions.hideWidget} draggedId={draggedId} dragOverId={dragOverId} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragEnter={handleDragEnter} onDrop={handleDrop}>
             <div style={st('background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--card-shadow);overflow:hidden;height:100%;box-sizing:border-box')}>
               <div style={st('padding:16px 18px 8px;font-size:15px;font-weight:700;color:var(--fg-primary)')}>Needs attention</div>
               <div style={st('padding:0 8px 8px')}>
@@ -229,7 +291,7 @@ export function Overview() {
         )}
 
         {hidden.includes('team') ? null : (
-          <Widget id="team" order={order} editMode={editMode} onMove={actions.moveWidget} onHide={actions.hideWidget}>
+          <Widget id="team" order={order} editMode={editMode} onHide={actions.hideWidget} draggedId={draggedId} dragOverId={dragOverId} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragEnter={handleDragEnter} onDrop={handleDrop}>
             <div style={st('background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--card-shadow);padding:16px 18px;height:100%;box-sizing:border-box')}>
               <div style={st('font-size:15px;font-weight:700;color:var(--fg-primary);margin-bottom:12px')}>Team activity</div>
               <div style={st('display:flex;flex-direction:column;gap:12px')}>
@@ -252,7 +314,7 @@ export function Overview() {
         )}
 
         {hidden.includes('weather') ? null : (
-          <Widget id="weather" order={order} editMode={editMode} onMove={actions.moveWidget} onHide={actions.hideWidget}>
+          <Widget id="weather" order={order} editMode={editMode} onHide={actions.hideWidget} draggedId={draggedId} dragOverId={dragOverId} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragEnter={handleDragEnter} onDrop={handleDrop}>
             <div style={st('background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--card-shadow);padding:16px 18px;height:100%;box-sizing:border-box')}>
               <div style={st('font-size:15px;font-weight:700;color:var(--fg-primary);margin-bottom:3px')}>This week</div>
               <div style={st('font-size:12.5px;color:var(--fg-tertiary);margin-bottom:14px')}>{weekWalks.length} walks booked</div>
@@ -263,7 +325,7 @@ export function Overview() {
         )}
 
         {hidden.includes('notes') ? null : (
-          <Widget id="notes" order={order} editMode={editMode} onMove={actions.moveWidget} onHide={actions.hideWidget}>
+          <Widget id="notes" order={order} editMode={editMode} onHide={actions.hideWidget} draggedId={draggedId} dragOverId={dragOverId} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragEnter={handleDragEnter} onDrop={handleDrop}>
             <div style={st('background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--card-shadow);padding:16px 18px;height:100%;box-sizing:border-box;display:flex;flex-direction:column')}>
               <div style={st('font-size:15px;font-weight:700;color:var(--fg-primary);margin-bottom:12px')}>Quick notes</div>
               <div style={st('display:flex;flex-direction:column;gap:9px;flex:1;margin-bottom:10px')}>

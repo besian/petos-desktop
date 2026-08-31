@@ -18,6 +18,9 @@ import { ReportEdit } from './views/ReportEdit';
 import { Team } from './views/Team';
 import { TeamMember } from './views/TeamMember';
 import { Settings } from './views/Settings';
+import { NewWalk } from './pages/NewWalk';
+import { AddPet } from './pages/AddPet';
+import { AddTeamMember } from './pages/AddTeamMember';
 
 function RedirectIfAuthed({ children }: { children: React.ReactNode }) {
   const { account } = useAuth();
@@ -33,7 +36,9 @@ function AppRoutes() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Overview />} />
         <Route path="/schedule" element={<Schedule />} />
+        <Route path="/schedule/new" element={<NewWalk />} />
         <Route path="/pets" element={<Pets />} />
+        <Route path="/pets/new" element={<AddPet />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/clients/:clientId" element={<Client />} />
         <Route path="/reports" element={<Reports />} />
@@ -42,6 +47,7 @@ function AppRoutes() {
         <Route path="/payments" element={<Payments />} />
         <Route path="/payments/:invoiceId" element={<Invoice />} />
         <Route path="/team" element={<Team />} />
+        <Route path="/team/new" element={<AddTeamMember />} />
         <Route path="/team/:memberId" element={<TeamMember />} />
         <Route path="/business" element={<Business />} />
         <Route path="/settings" element={<Settings />} />

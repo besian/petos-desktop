@@ -4,7 +4,7 @@ import { useUI } from '../ui/store';
 import { useDB } from '../db/store';
 import { usePageHeader } from '../ui/pageHeader';
 import { todayISO, addDays, startOfWeek, dow, dayNum, formatShort } from '../db/dates';
-import { Modal, btnSecondary } from '../components/Modal';
+import { Modal, fieldLabel, fieldInput, fieldWrap, btnPrimary, btnSecondary } from '../components/Modal';
 import type { Walk } from '../db/types';
 
 const HOURS = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00'];
@@ -17,8 +17,9 @@ function timeToTop(time: string): number {
 
 export function Schedule() {
   const { state, actions } = useUI();
-  const { db, cancelWalk } = useDB();
+  const { db, cancelWalk, updateWalk } = useDB();
   const [openWalk, setOpenWalk] = useState<Walk | null>(null);
+  const [editForm, setEditForm] = useState({ petId: '', walkerId: '', date: '', time: '', durationMin: 60 as 30 | 45 | 60, repeatWeekly: false });
 
   const weekStart = useMemo(() => startOfWeek(todayISO()), []);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
@@ -97,7 +98,10 @@ export function Schedule() {
                     return (
                       <button
                         key={w.id}
-                        onClick={() => setOpenWalk(w)}
+                        onClick={() => {
+                          setOpenWalk(w);
+                          setEditForm({ petId: w.petId, walkerId: w.walkerId, date: w.date, time: w.time, durationMin: w.durationMin, repeatWeekly: w.repeatWeekly });
+                        }}
                         style={st(`position:absolute;left:4px;right:4px;top:${top}px;height:${height}px;border-radius:8px;padding:6px 8px;color:#fff;overflow:hidden;background:${walker?.color || '#888'};box-shadow:0 1px 3px rgba(0,0,0,.14);transition:opacity .18s var(--ease-out),filter .18s var(--ease-out);opacity:${dim ? '.18' : '1'};filter:${dim ? 'grayscale(1)' : 'none'};border:none;cursor:pointer;text-align:left;font-family:inherit`)}
                       >
                         <div style={st('font-size:11px;font-weight:700;line-height:1.2')}>{pet?.name}</div>
@@ -121,26 +125,78 @@ export function Schedule() {
 
       {openWalk ? (
         <Modal
-          title={petById.get(openWalk.petId)?.name || 'Walk'}
-          sub={`${dow(openWalk.date)} ${dayNum(openWalk.date)} · ${openWalk.time} · ${openWalk.durationMin} min`}
+          title={`Edit ${petById.get(openWalk.petId)?.name || 'walk'}`}
+          sub={`${dow(openWalk.date)} ${dayNum(openWalk.date)} · ${openWalk.route}`}
           onClose={() => setOpenWalk(null)}
           footer={
             <>
-              <button onClick={() => setOpenWalk(null)} style={st(btnSecondary)}>Close</button>
               <button
                 onClick={() => { cancelWalk(openWalk.id); actions.showToast('Walk cancelled'); setOpenWalk(null); }}
-                style={st('border:none;background:var(--color-error-500);color:#fff;font-family:inherit;font-size:13.5px;font-weight:600;padding:10px 18px;border-radius:10px;cursor:pointer')}
+                style={st('border:none;background:var(--color-error-500);color:#fff;font-family:inherit;font-size:13.5px;font-weight:600;padding:10px 18px;border-radius:10px;cursor:pointer;margin-right:auto')}
               >
                 Cancel walk
+              </button>
+              <button onClick={() => setOpenWalk(null)} style={st(btnSecondary)}>Close</button>
+              <button
+                onClick={() => {
+                  updateWalk(openWalk.id, editForm);
+                  actions.showToast('Walk updated');
+                  setOpenWalk(null);
+                }}
+                style={st(btnPrimary)}
+              >
+                Save changes
               </button>
             </>
           }
         >
-          <div style={st('display:flex;flex-direction:column;gap:10px')}>
-            <div style={st('display:flex;justify-content:space-between')}><span style={st('font-size:13px;color:var(--fg-tertiary)')}>Route</span><span style={st('font-size:13px;font-weight:600;color:var(--fg-primary)')}>{openWalk.route}</span></div>
-            <div style={st('display:flex;justify-content:space-between')}><span style={st('font-size:13px;color:var(--fg-tertiary)')}>Walker</span><span style={st('font-size:13px;font-weight:600;color:var(--fg-primary)')}>{teamById.get(openWalk.walkerId)?.name || 'Unassigned'}</span></div>
-            <div style={st('display:flex;justify-content:space-between')}><span style={st('font-size:13px;color:var(--fg-tertiary)')}>Price</span><span style={st('font-size:13px;font-weight:600;color:var(--fg-primary)')}>£{openWalk.price}</span></div>
-            <div style={st('display:flex;justify-content:space-between')}><span style={st('font-size:13px;color:var(--fg-tertiary)')}>Repeats</span><span style={st('font-size:13px;font-weight:600;color:var(--fg-primary)')}>{openWalk.repeatWeekly ? 'Weekly' : 'One-off'}</span></div>
+          <div style={st('display:flex;flex-direction:column;gap:2px')}>
+            <div style={st(fieldWrap)}>
+              <label style={st(fieldLabel)}>Pet</label>
+              <select value={editForm.petId} onChange={(e) => setEditForm((f) => ({ ...f, petId: e.target.value }))} style={st(fieldInput)}>
+                {db.pets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div style={st(fieldWrap)}>
+              <label style={st(fieldLabel)}>Walker</label>
+              <select value={editForm.walkerId} onChange={(e) => setEditForm((f) => ({ ...f, walkerId: e.target.value }))} style={st(fieldInput)}>
+                <option value="">Unassigned</option>
+                {db.team.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div style={st('display:flex;gap:12px')}>
+              <div style={{ ...st(fieldWrap), flex: 1 }}>
+                <label style={st(fieldLabel)}>Day</label>
+                <select value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} style={st(fieldInput)}>
+                  {weekDays.map((iso) => <option key={iso} value={iso}>{dow(iso)} {dayNum(iso)}</option>)}
+                </select>
+              </div>
+              <div style={{ ...st(fieldWrap), flex: 1 }}>
+                <label style={st(fieldLabel)}>Time</label>
+                <input type="time" value={editForm.time} onChange={(e) => setEditForm((f) => ({ ...f, time: e.target.value }))} style={st(fieldInput)} />
+              </div>
+            </div>
+            <div style={st(fieldWrap)}>
+              <label style={st(fieldLabel)}>Duration</label>
+              <select value={editForm.durationMin} onChange={(e) => setEditForm((f) => ({ ...f, durationMin: Number(e.target.value) as 30 | 45 | 60 }))} style={st(fieldInput)}>
+                <option value={30}>30 min</option>
+                <option value={45}>45 min</option>
+                <option value={60}>60 min</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditForm((f) => ({ ...f, repeatWeekly: !f.repeatWeekly }))}
+              style={st('display:flex;align-items:center;gap:13px;width:100%;text-align:left;background:var(--bg-secondary);border:1px solid var(--border-subtle);border-radius:12px;padding:12px 14px;cursor:pointer;font-family:inherit;margin-top:6px')}
+            >
+              <div style={st('flex:1')}>
+                <div style={st('font-size:13.5px;font-weight:600;color:var(--fg-primary)')}>Repeat weekly</div>
+              </div>
+              <span style={st(`width:38px;height:22px;border-radius:99px;flex:none;display:inline-flex;align-items:center;padding:2px;background:${editForm.repeatWeekly ? 'var(--brand-primary)' : 'var(--bg-tertiary)'}`)}>
+                <span style={st(`width:18px;height:18px;border-radius:99px;background:#fff;${editForm.repeatWeekly ? 'margin-left:auto' : ''}`)} />
+              </span>
+            </button>
+            <div style={st('display:flex;justify-content:space-between;margin-top:14px')}><span style={st('font-size:13px;color:var(--fg-tertiary)')}>Price</span><span style={st('font-size:13px;font-weight:600;color:var(--fg-primary)')}>£{openWalk.price}</span></div>
           </div>
         </Modal>
       ) : null}

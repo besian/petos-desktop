@@ -1,20 +1,15 @@
-import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { st } from '../lib/st';
 import { useDB } from '../db/store';
 import { usePageHeader } from '../ui/pageHeader';
 import { todayISO, startOfWeek, addDays } from '../db/dates';
 import { ChevronRightIcon, PlusIcon } from '../components/icons';
-import { Modal, fieldLabel, fieldInput, fieldWrap, btnPrimary, btnSecondary } from '../components/Modal';
 
-const COLORS = ['#127A63', '#4A6C8C', '#A66C8C', '#8C7A4A', '#5C6E7C', '#7A3E4A'];
 const DAILY_CAPACITY = 6;
 
 export function Team() {
   const navigate = useNavigate();
-  const { db, addTeamMember } = useDB();
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: '', role: 'Walker', area: '', phone: '', email: '' });
+  const { db } = useDB();
   usePageHeader('Team', db.team.map((t) => t.name.split(' ')[0]).join(', '));
 
   const today = todayISO();
@@ -32,19 +27,10 @@ export function Team() {
   const busiest = rows.reduce((max, r) => (r.util > (max?.util || -1) ? r : max), rows[0]);
   const spare = rows.find((r) => r.id !== busiest?.id && r.util < 70);
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-    const color = COLORS[db.team.length % COLORS.length];
-    addTeamMember({ name: form.name.trim(), role: form.role.trim() || 'Walker', area: form.area.trim() || 'Not set', color, phone: form.phone.trim() || 'Not set', email: form.email.trim() || 'Not set', joined: `${form.role.trim() || 'Walker'} · ${new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`, bio: '', skills: [], status: 'Available' });
-    setShowAdd(false);
-    setForm({ name: '', role: 'Walker', area: '', phone: '', email: '' });
-  };
-
   return (
     <div style={st('animation:vIn .3s var(--ease-out)')}>
       <div style={st('display:flex;justify-content:flex-end;margin-bottom:14px')}>
-        <button onClick={() => setShowAdd(true)} style={st('display:inline-flex;align-items:center;gap:7px;border:none;background:var(--brand-primary);color:var(--brand-on-primary);font-family:inherit;font-size:13px;font-weight:600;padding:9px 15px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow-ring-primary)')}>
+        <button onClick={() => navigate('/team/new')} style={st('display:inline-flex;align-items:center;gap:7px;border:none;background:var(--brand-primary);color:var(--brand-on-primary);font-family:inherit;font-size:13px;font-weight:600;padding:9px 15px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow-ring-primary)')}>
           <PlusIcon size={15} />Add team member
         </button>
       </div>
@@ -80,21 +66,6 @@ export function Team() {
         <div style={st('background:var(--bg-brand-subtle);border:1px solid var(--border-brand);border-radius:16px;padding:15px 17px;display:flex;align-items:center;gap:12px')}>
           <div style={st('flex:1;font-size:13.5px;color:var(--fg-primary);font-weight:500')}>{busiest.name.split(' ')[0]} is at {busiest.util}% today and {spare.name.split(' ')[0]} has capacity — consider rebalancing tomorrow's schedule.</div>
         </div>
-      ) : null}
-
-      {showAdd ? (
-        <Modal title="Add team member" onClose={() => setShowAdd(false)} footer={<>
-          <button onClick={() => setShowAdd(false)} style={st(btnSecondary)}>Cancel</button>
-          <button type="submit" form="add-member-form" style={st(btnPrimary)}>Add</button>
-        </>}>
-          <form id="add-member-form" onSubmit={submit}>
-            <div style={st(fieldWrap)}><label style={st(fieldLabel)}>Name</label><input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={st(fieldInput)} /></div>
-            <div style={st(fieldWrap)}><label style={st(fieldLabel)}>Role</label><input value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} style={st(fieldInput)} placeholder="Walker" /></div>
-            <div style={st(fieldWrap)}><label style={st(fieldLabel)}>Area</label><input value={form.area} onChange={(e) => setForm((f) => ({ ...f, area: e.target.value }))} style={st(fieldInput)} placeholder="e.g. Chelsea · Belgravia" /></div>
-            <div style={st(fieldWrap)}><label style={st(fieldLabel)}>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={st(fieldInput)} /></div>
-            <div style={st(fieldWrap)}><label style={st(fieldLabel)}>Email</label><input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={st(fieldInput)} /></div>
-          </form>
-        </Modal>
       ) : null}
     </div>
   );

@@ -102,6 +102,7 @@ export interface Report {
   tones?: ReportTones;
   logs: [string, string][];
   include: { photos: boolean; map: boolean; behaviour: boolean; water: boolean };
+  photos?: string[];
   createdAt: string;
 }
 

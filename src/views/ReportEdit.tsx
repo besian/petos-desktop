@@ -124,9 +124,9 @@ export function ReportEdit() {
           <div>
             <div style={st('font-size:12.5px;font-weight:700;color:var(--fg-primary);margin-bottom:9px')}>Photos</div>
             <div style={st('display:grid;grid-template-columns:repeat(3,1fr);gap:10px')}>
-              {[1, 2, 3].map((n) => (
+              {[0, 1, 2].map((n) => (
                 <div key={n} style={st('aspect-ratio:4/3;border-radius:12px;overflow:hidden;position:relative')}>
-                  <ImageSlot shape="rect" fit="cover" placeholder="Tap to replace" />
+                  <ImageSlot shape="rect" fit="cover" src={rd.photos?.[n]} placeholder="Tap to replace" />
                 </div>
               ))}
             </div>

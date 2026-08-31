@@ -106,7 +106,7 @@ export function TeamMember() {
             </div>
             <div style={st('display:flex;gap:9px;margin-top:16px')}>
               <button onClick={() => setMessageOpen(true)} style={st('flex:1;border:none;background:var(--brand-primary);color:var(--brand-on-primary);font-family:inherit;font-size:13px;font-weight:600;padding:9px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow-ring-primary)')}>Message</button>
-              <button onClick={() => actions.openNewWalk()} style={st('flex:1;border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary);font-family:inherit;font-size:13px;font-weight:600;padding:9px;border-radius:10px;cursor:pointer')}>Assign walk</button>
+              <button onClick={() => navigate(`/schedule/new?walkerId=${member.id}`)} style={st('flex:1;border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary);font-family:inherit;font-size:13px;font-weight:600;padding:9px;border-radius:10px;cursor:pointer')}>Assign walk</button>
             </div>
           </div>
 
