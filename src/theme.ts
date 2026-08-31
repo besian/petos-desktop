@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { Theme } from './state';
+import type { Theme } from './ui/store';
 
 export const ACCENT = '#127A63';
 

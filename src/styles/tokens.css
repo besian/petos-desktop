@@ -185,3 +185,9 @@ a:hover { color: var(--brand-primary); text-decoration: underline; }
 .settings-nav-link:hover { background: var(--bg-secondary); }
 .search-result-row:hover { background: var(--bg-secondary); }
 .team-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-default); }
+
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; top: 0; left: 0; width: 100%; box-shadow: none !important; border: none !important; }
+}

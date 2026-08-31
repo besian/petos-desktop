@@ -1,8 +1,8 @@
-import { useApp } from '../state';
+import { useUI } from '../ui/store';
 import { CheckIcon } from './icons';
 
 export function Toast() {
-  const { state } = useApp();
+  const { state } = useUI();
   if (!state.toast) return null;
   return (
     <div

@@ -1,13 +1,13 @@
-import { AppProvider, useApp } from './state';
-import { themeVars, ACCENT } from './theme';
-import { Sidebar } from './components/Sidebar';
-import { TopBar } from './components/TopBar';
-import { CopilotPanel } from './components/CopilotPanel';
-import { NewWalkModal } from './components/NewWalkModal';
-import { Toast } from './components/Toast';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider, useAuth } from './auth/store';
+import { UIProvider } from './ui/store';
+import { AppLayout } from './layout/AppLayout';
+import { Login } from './pages/Login';
+import { Signup } from './pages/Signup';
 import { Overview } from './views/Overview';
 import { Schedule } from './views/Schedule';
 import { Pets } from './views/Pets';
+import { Clients } from './views/Clients';
 import { Client } from './views/Client';
 import { Payments } from './views/Payments';
 import { Invoice } from './views/Invoice';
@@ -19,65 +19,46 @@ import { Team } from './views/Team';
 import { TeamMember } from './views/TeamMember';
 import { Settings } from './views/Settings';
 
-function ViewRouter() {
-  const { state } = useApp();
-  switch (state.view) {
-    case 'overview': return <Overview />;
-    case 'schedule': return <Schedule />;
-    case 'pets': return <Pets />;
-    case 'client': return <Client />;
-    case 'payments': return <Payments />;
-    case 'invoice': return <Invoice />;
-    case 'business': return <Business />;
-    case 'reports': return <Reports />;
-    case 'reportview': return <ReportView />;
-    case 'reportedit': return <ReportEdit />;
-    case 'team': return <Team />;
-    case 'teammember': return <TeamMember />;
-    case 'settings': return <Settings />;
-    default: return null;
-  }
+function RedirectIfAuthed({ children }: { children: React.ReactNode }) {
+  const { account } = useAuth();
+  if (account) return <Navigate to="/" replace />;
+  return <>{children}</>;
 }
 
-function Stage() {
-  const { state } = useApp();
-  const vars = themeVars(state.theme, ACCENT);
-
+function AppRoutes() {
   return (
-    <div
-      style={{
-        ...vars,
-        height: '100vh',
-        width: '100vw',
-        background: 'var(--bg-app)',
-        fontFamily: "'Inter', sans-serif",
-        boxSizing: 'border-box',
-        overflow: 'hidden',
-        display: 'flex',
-      }}
-    >
-      <Sidebar />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <TopBar />
-        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-          <div className="ps" style={{ flex: 1, overflowY: 'auto', padding: 26, minWidth: 0 }}>
-            <div style={{ maxWidth: 1680, margin: '0 auto' }}>
-              <ViewRouter />
-            </div>
-          </div>
-          <CopilotPanel />
-        </div>
-      </div>
-      <NewWalkModal />
-      <Toast />
-    </div>
+    <Routes>
+      <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
+      <Route path="/signup" element={<RedirectIfAuthed><Signup /></RedirectIfAuthed>} />
+      <Route element={<AppLayout />}>
+        <Route path="/" element={<Overview />} />
+        <Route path="/schedule" element={<Schedule />} />
+        <Route path="/pets" element={<Pets />} />
+        <Route path="/clients" element={<Clients />} />
+        <Route path="/clients/:clientId" element={<Client />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/reports/:reportId" element={<ReportView />} />
+        <Route path="/reports/:reportId/edit" element={<ReportEdit />} />
+        <Route path="/payments" element={<Payments />} />
+        <Route path="/payments/:invoiceId" element={<Invoice />} />
+        <Route path="/team" element={<Team />} />
+        <Route path="/team/:memberId" element={<TeamMember />} />
+        <Route path="/business" element={<Business />} />
+        <Route path="/settings" element={<Settings />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
 export default function App() {
   return (
-    <AppProvider>
-      <Stage />
-    </AppProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <UIProvider>
+          <AppRoutes />
+        </UIProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

@@ -1,17 +1,32 @@
+import { useState, type FormEvent } from 'react';
 import { st } from '../lib/st';
-import { useApp } from '../state';
-import { petColors } from '../data';
+import { useUI } from '../ui/store';
+import { useDB } from '../db/store';
+import { answerCopilot } from '../lib/copilot';
 import { CloseIcon, SparkleIcon, SendIcon } from './icons';
 
-const chips: [string, 'unpaid' | 'meds' | 'space'][] = [
-  ['Who hasn’t paid?', 'unpaid'],
-  ['Dogs with medication?', 'meds'],
-  ['Space next Thursday?', 'space'],
-];
+const chips = ['Who hasn’t paid?', 'Dogs with medication?', 'Space next Thursday?'];
 
 export function CopilotPanel() {
-  const { state, actions } = useApp();
+  const { state, actions } = useUI();
+  const { db } = useDB();
+  const [draft, setDraft] = useState('');
   if (!state.copilotOpen) return null;
+
+  const ask = (question: string) => {
+    if (!question.trim()) return;
+    actions.pushCopilotUser(question);
+    setTimeout(() => {
+      const a = answerCopilot(db, question);
+      actions.pushCopilotAI(a.text, a.rows);
+    }, 500);
+    setDraft('');
+  };
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    ask(draft);
+  };
 
   return (
     <div style={st('width:340px;flex:none;border-left:1px solid var(--border-subtle);background:var(--bg-primary);display:flex;flex-direction:column')}>
@@ -42,7 +57,7 @@ export function CopilotPanel() {
           <div style={st('background:var(--bg-secondary);border:1px solid var(--border-subtle);border-radius:14px;padding:6px')}>
             {state.copilotResult.map((r, i) => (
               <div key={i} style={st('display:flex;align-items:center;gap:11px;padding:9px 10px')}>
-                <span style={st(`width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex:none;background:${petColors[r.pet] || '#6E7A77'}`)}>{r.initial}</span>
+                <span style={st(`width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex:none;background:${r.color}`)}>{r.initial}</span>
                 <div style={st('flex:1;min-width:0')}>
                   <div style={st('font-size:13px;font-weight:600;color:var(--fg-primary)')}>{r.name}</div>
                   <div style={st('font-size:11.5px;color:var(--fg-tertiary)')}>{r.sub}</div>
@@ -54,25 +69,30 @@ export function CopilotPanel() {
       </div>
       <div style={st('padding:10px 14px 16px;border-top:1px solid var(--border-subtle)')}>
         <div className="ps" style={st('display:flex;gap:7px;overflow-x:auto;padding-bottom:9px')}>
-          {chips.map(([label, kind]) => (
+          {chips.map((label) => (
             <button
-              key={kind}
-              onClick={() => actions.askCopilot(label, kind)}
+              key={label}
+              onClick={() => ask(label)}
               style={st('flex:none;white-space:nowrap;font-size:12px;font-weight:600;color:var(--fg-secondary);background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:999px;padding:7px 12px;cursor:pointer;font-family:inherit')}
             >
               {label}
             </button>
           ))}
         </div>
-        <div style={st('display:flex;align-items:center;gap:8px;background:var(--bg-tertiary);border-radius:12px;padding:6px 6px 6px 14px')}>
-          <span style={st('flex:1;font-size:13px;color:var(--fg-tertiary)')}>Ask anything…</span>
+        <form onSubmit={onSubmit} style={st('display:flex;align-items:center;gap:8px;background:var(--bg-tertiary);border-radius:12px;padding:6px 6px 6px 14px')}>
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Ask anything…"
+            style={st('flex:1;min-width:0;border:none;background:transparent;outline:none;font-family:inherit;font-size:13px;color:var(--fg-primary)')}
+          />
           <button
-            onClick={() => actions.askCopilot('What should I focus on?', 'default')}
-            style={st('width:34px;height:34px;border-radius:9px;border:none;background:var(--brand-primary);color:var(--brand-on-primary);display:flex;align-items:center;justify-content:center;cursor:pointer')}
+            type="submit"
+            style={st('width:34px;height:34px;border-radius:9px;border:none;background:var(--brand-primary);color:var(--brand-on-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none')}
           >
             <SendIcon />
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );

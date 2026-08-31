@@ -1,38 +1,32 @@
-import { petsDef, petColors, invDefs, ownerAddr } from '../data';
+import type { DB } from '../db/types';
 
 export interface SearchResult {
   type: 'Pet' | 'Client' | 'Invoice';
   title: string;
   sub: string;
   initial: string;
-  dot: string;
+  color: string;
   key: string;
+  to: string;
 }
 
-interface SearchAllEntry extends SearchResult {
-  go: 'client' | string; // 'client' or an invoice number
-}
-
-function buildSearchAll(): SearchAllEntry[] {
-  const all: SearchAllEntry[] = [];
-  petsDef.forEach(([id, name, breed, owner]) => {
-    all.push({ type: 'Pet', title: name, sub: breed + ' · ' + owner, initial: name[0], dot: petColors[id], key: 'pet-' + id, go: 'client' });
-  });
-  const owners = [...new Set(petsDef.map((p) => p[3]))];
-  owners.forEach((owner) => {
-    const pet = petsDef.find((p) => p[3] === owner)!;
-    all.push({ type: 'Client', title: owner, sub: pet[1] + '’s owner · ' + (ownerAddr[owner] || 'London'), initial: owner[0], dot: 'var(--fg-secondary)', key: 'client-' + owner, go: 'client' });
-  });
-  Object.entries(invDefs).forEach(([no, d]) => {
-    const amt = d.items.reduce((s, it) => s + parseFloat(it.amount.replace('£', '')), 0);
-    all.push({ type: 'Invoice', title: no, sub: d.client + ' · £' + amt.toFixed(2), initial: '#', dot: 'var(--fg-tertiary)', key: 'inv-' + no, go: no });
-  });
-  return all;
-}
-
-export function searchFor(query: string): SearchAllEntry[] {
+export function searchDB(db: DB, query: string): SearchResult[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const all = buildSearchAll();
-  return all.filter((r) => (r.title + ' ' + r.sub + ' ' + r.type).toLowerCase().includes(q)).slice(0, 7);
+  const all: SearchResult[] = [];
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+
+  for (const pet of db.pets) {
+    const owner = clientById.get(pet.clientId);
+    all.push({ type: 'Pet', title: pet.name, sub: `${pet.breed}${owner ? ' · ' + owner.name : ''}`, initial: pet.name[0], color: pet.color, key: 'pet-' + pet.id, to: `/clients/${pet.clientId}` });
+  }
+  for (const client of db.clients) {
+    all.push({ type: 'Client', title: client.name, sub: `${client.addressLine1} · ${client.addressLine2}`, initial: client.name[0], color: 'var(--fg-secondary)', key: 'client-' + client.id, to: `/clients/${client.id}` });
+  }
+  for (const inv of db.invoices) {
+    const client = clientById.get(inv.clientId);
+    const amt = inv.items.reduce((s, it) => s + parseFloat(it.amount.replace('£', '')), 0);
+    all.push({ type: 'Invoice', title: inv.id, sub: `${client ? client.name : 'Unknown'} · £${amt.toFixed(2)}`, initial: '#', color: 'var(--fg-tertiary)', key: 'inv-' + inv.id, to: `/payments/${inv.id}` });
+  }
+  return all.filter((r) => (r.title + ' ' + r.sub + ' ' + r.type).toLowerCase().includes(q)).slice(0, 8);
 }
