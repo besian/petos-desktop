@@ -18,21 +18,29 @@ export function AddPet() {
   const [newClient, setNewClient] = useState(db.clients.length === 0);
   const [form, setForm] = useState({ name: '', breed: '', plan: 'Weekly' as 'Weekly' | 'Fortnightly' | 'Monthly', clientId: presetClientId || db.clients[0]?.id || '', ownerName: '', ownerEmail: '', ownerAddress: '' });
 
+  const [submitting, setSubmitting] = useState(false);
   usePageHeader('Add pet', 'Create a new pet and link it to a client');
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     let clientId = form.clientId;
-    if (newClient) {
-      if (!form.ownerName.trim()) return;
-      const created = addClient({ name: form.ownerName.trim(), addressLine1: form.ownerAddress.trim() || 'Address not set', addressLine2: '', email: form.ownerEmail.trim() || 'no-email@example.com', memberSince: new Date().getFullYear().toString() });
-      clientId = created.id;
+    setSubmitting(true);
+    try {
+      if (newClient) {
+        if (!form.ownerName.trim()) { setSubmitting(false); return; }
+        const created = await addClient({ name: form.ownerName.trim(), addressLine1: form.ownerAddress.trim() || 'Address not set', addressLine2: '', email: form.ownerEmail.trim() || 'no-email@example.com', memberSince: new Date().getFullYear().toString() });
+        clientId = created.id;
+      }
+      if (!clientId || !form.name.trim()) { setSubmitting(false); return; }
+      const color = PET_COLORS[db.pets.length % PET_COLORS.length];
+      const created = await addPet({ name: form.name.trim(), breed: form.breed.trim() || 'Mixed breed', clientId, plan: form.plan, color });
+      actions.showToast(`${created.name} added`);
+      navigate(`/clients/${clientId}`);
+    } catch {
+      actions.showToast('Could not save — check your connection');
+    } finally {
+      setSubmitting(false);
     }
-    if (!clientId || !form.name.trim()) return;
-    const color = PET_COLORS[db.pets.length % PET_COLORS.length];
-    const created = addPet({ name: form.name.trim(), breed: form.breed.trim() || 'Mixed breed', clientId, plan: form.plan, color });
-    actions.showToast(`${created.name} added`);
-    navigate(`/clients/${clientId}`);
   };
 
   return (
@@ -93,7 +101,7 @@ export function AddPet() {
         </form>
         <div style={st('display:flex;justify-content:flex-end;gap:10px;margin-top:8px')}>
           <button onClick={() => navigate(-1)} style={st(btnSecondary)}>Cancel</button>
-          <button type="submit" form="add-pet-form" style={st(btnPrimary)}>Add pet</button>
+          <button type="submit" form="add-pet-form" disabled={submitting} style={st(`${btnPrimary}${submitting ? ';opacity:.65' : ''}`)}>{submitting ? 'Adding…' : 'Add pet'}</button>
         </div>
       </div>
     </div>

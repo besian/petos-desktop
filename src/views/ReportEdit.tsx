@@ -6,6 +6,7 @@ import { usePageHeader } from '../ui/pageHeader';
 import type { Report } from '../db/types';
 import { ChevronLeftIcon } from '../components/icons';
 import { ImageSlot } from '../components/ImageSlot';
+import { PhotoUploadButton } from '../components/PhotoUploadButton';
 import { btnSecondary } from '../components/Modal';
 
 const rTogOn = 'width:38px;height:22px;border-radius:99px;background:var(--brand-primary);display:inline-flex;align-items:center;padding:2px;flex:none';
@@ -125,9 +126,19 @@ export function ReportEdit() {
             <div style={st('font-size:12.5px;font-weight:700;color:var(--fg-primary);margin-bottom:9px')}>Photos</div>
             <div style={st('display:grid;grid-template-columns:repeat(3,1fr);gap:10px')}>
               {[0, 1, 2].map((n) => (
-                <div key={n} style={st('aspect-ratio:4/3;border-radius:12px;overflow:hidden;position:relative')}>
+                <PhotoUploadButton
+                  key={n}
+                  folder="reports"
+                  title="Upload a walk photo"
+                  style={{ aspectRatio: '4/3', borderRadius: 12, overflow: 'hidden' }}
+                  onUploaded={(url) => {
+                    const next = [...(rd.photos ?? [])];
+                    next[n] = url;
+                    updateReport(rd.id, { photos: next });
+                  }}
+                >
                   <ImageSlot shape="rect" fit="cover" src={rd.photos?.[n]} placeholder="Tap to replace" />
-                </div>
+                </PhotoUploadButton>
               ))}
             </div>
           </div>

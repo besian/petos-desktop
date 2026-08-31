@@ -31,6 +31,7 @@ export function NewWalk() {
   const [time, setTime] = useState('09:00');
   const [duration, setDuration] = useState<30 | 45 | 60>(60);
   const [repeat, setRepeat] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   usePageHeader('New walk', 'Book a walk for this week');
 
@@ -42,11 +43,17 @@ export function NewWalk() {
   const summary = pet ? `${pet.name} · ${dow(dayIso)} ${time} · ${duration} min` : '';
   const priceLabel = `£${rate}` + (repeat ? ' /wk' : '');
 
-  const submit = () => {
+  const submit = async () => {
     if (!pet) return;
-    addWalk({ petId: pet.id, walkerId, date: dayIso, time, durationMin: duration, price: rate, route: `${pet.name}'s usual route`, repeatWeekly: repeat });
-    actions.showToast(`${pet.name} added${repeat ? ' · weekly' : ''}`);
-    navigate('/schedule');
+    setSubmitting(true);
+    try {
+      await addWalk({ petId: pet.id, walkerId, date: dayIso, time, durationMin: duration, price: rate, route: `${pet.name}'s usual route`, repeatWeekly: repeat });
+      actions.showToast(`${pet.name} added${repeat ? ' · weekly' : ''}`);
+      navigate('/schedule');
+    } catch {
+      actions.showToast('Could not save — check your connection');
+      setSubmitting(false);
+    }
   };
 
   if (db.pets.length === 0) {
@@ -189,7 +196,7 @@ export function NewWalk() {
             <div style={st('font-size:19px;font-weight:700;color:var(--fg-primary)')}>{priceLabel}</div>
           </div>
           <button onClick={() => navigate(-1)} style={st(btnSecondary)}>Cancel</button>
-          <button onClick={submit} style={st(btnPrimary)}>Add walk</button>
+          <button onClick={submit} disabled={submitting} style={st(`${btnPrimary}${submitting ? ';opacity:.65' : ''}`)}>{submitting ? 'Adding…' : 'Add walk'}</button>
         </div>
       </div>
     </div>

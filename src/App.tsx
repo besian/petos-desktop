@@ -23,7 +23,8 @@ import { AddPet } from './pages/AddPet';
 import { AddTeamMember } from './pages/AddTeamMember';
 
 function RedirectIfAuthed({ children }: { children: React.ReactNode }) {
-  const { account } = useAuth();
+  const { account, ready } = useAuth();
+  if (!ready) return null;
   if (account) return <Navigate to="/" replace />;
   return <>{children}</>;
 }

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { st } from '../lib/st';
 import { useDB } from '../db/store';
+import { useUI } from '../ui/store';
 import { usePageHeader } from '../ui/pageHeader';
 import { ChevronLeftIcon } from '../components/icons';
 import { fieldLabel, fieldInput, fieldWrap, btnPrimary, btnSecondary } from '../components/Modal';
@@ -11,16 +12,24 @@ const COLORS = ['#127A63', '#4A6C8C', '#A66C8C', '#8C7A4A', '#5C6E7C', '#7A3E4A'
 export function AddTeamMember() {
   const navigate = useNavigate();
   const { db, addTeamMember } = useDB();
+  const { actions } = useUI();
   const [form, setForm] = useState({ name: '', role: 'Walker', area: '', phone: '', email: '' });
+  const [submitting, setSubmitting] = useState(false);
 
   usePageHeader('Add team member', 'Add a walker or staff member');
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
-    const color = COLORS[db.team.length % COLORS.length];
-    const created = addTeamMember({ name: form.name.trim(), role: form.role.trim() || 'Walker', area: form.area.trim() || 'Not set', color, phone: form.phone.trim() || 'Not set', email: form.email.trim() || 'Not set', joined: `${form.role.trim() || 'Walker'} · ${new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`, bio: '', skills: [], status: 'Available' });
-    navigate(`/team/${created.id}`);
+    setSubmitting(true);
+    try {
+      const color = COLORS[db.team.length % COLORS.length];
+      const created = await addTeamMember({ name: form.name.trim(), role: form.role.trim() || 'Walker', area: form.area.trim() || 'Not set', color, phone: form.phone.trim() || 'Not set', email: form.email.trim() || 'Not set', joined: `${form.role.trim() || 'Walker'} · ${new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`, bio: '', skills: [], status: 'Available' });
+      navigate(`/team/${created.id}`);
+    } catch {
+      actions.showToast('Could not save — check your connection');
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -39,7 +48,7 @@ export function AddTeamMember() {
         </form>
         <div style={st('display:flex;justify-content:flex-end;gap:10px;margin-top:8px')}>
           <button onClick={() => navigate(-1)} style={st(btnSecondary)}>Cancel</button>
-          <button type="submit" form="add-member-form" style={st(btnPrimary)}>Add</button>
+          <button type="submit" form="add-member-form" disabled={submitting} style={st(`${btnPrimary}${submitting ? ';opacity:.65' : ''}`)}>{submitting ? 'Adding…' : 'Add'}</button>
         </div>
       </div>
     </div>

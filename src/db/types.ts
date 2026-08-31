@@ -134,9 +134,6 @@ export interface Business {
   businessName: string;
   ownerName: string;
   email: string;
-  // NOT a secure hash — there is no backend to verify against, so this is
-  // client-side-only "auth" scoped to a single browser. See auth/README.
-  passwordObfuscated: string;
   plan: string;
   createdAt: string;
 }

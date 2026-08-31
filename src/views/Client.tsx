@@ -7,6 +7,7 @@ import { usePageHeader } from '../ui/pageHeader';
 import { relativeDay } from '../db/dates';
 import { ChevronLeftIcon, PlusIcon, TrashIcon, EditIcon } from '../components/icons';
 import { ImageSlot } from '../components/ImageSlot';
+import { PhotoUploadButton } from '../components/PhotoUploadButton';
 import { Modal, fieldLabel, fieldInput, fieldWrap, btnPrimary, btnSecondary } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
@@ -20,7 +21,7 @@ const ciPill: Record<string, [string, string]> = {
 export function Client() {
   const { clientId } = useParams();
   const navigate = useNavigate();
-  const { db, updateClient, deleteClient, deletePet } = useDB();
+  const { db, updateClient, deleteClient, deletePet, updatePet } = useDB();
   const { actions } = useUI();
   const [editOpen, setEditOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
@@ -93,9 +94,9 @@ export function Client() {
               <div style={st('display:flex;flex-direction:column;gap:10px')}>
                 {pets.map((pet) => (
                   <div key={pet.id} style={st('display:flex;align-items:center;gap:14px;padding:12px;border:1px solid var(--border-subtle);border-radius:14px')}>
-                    <div style={{ ...st('width:52px;height:52px;border-radius:14px;overflow:hidden;flex:none;position:relative'), background: pet.color }}>
+                    <PhotoUploadButton folder="pets" onUploaded={(url) => updatePet(pet.id, { photo: url })} title={`Upload a photo of ${pet.name}`} style={{ width: 52, height: 52, borderRadius: 14, overflow: 'hidden', flex: 'none', background: pet.color }}>
                       <ImageSlot shape="rect" fit="cover" src={pet.photo} placeholder={pet.name[0]} />
-                    </div>
+                    </PhotoUploadButton>
                     <div style={st('flex:1')}>
                       <div style={st('font-size:15px;font-weight:600;color:var(--fg-primary)')}>{pet.name} · {pet.breed}</div>
                       <div style={st('font-size:12.5px;color:var(--fg-tertiary)')}>{pet.ageYears ? `${pet.ageYears} yrs · ` : ''}{pet.plan.toLowerCase()}{pet.notes ? ' · ' + pet.notes : ''}</div>

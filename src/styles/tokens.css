@@ -181,6 +181,7 @@ a:hover { color: var(--brand-primary); text-decoration: underline; }
 
 @keyframes vIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes toastD { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .settings-nav-link:hover { background: var(--bg-secondary); }
 .search-result-row:hover { background: var(--bg-secondary); }

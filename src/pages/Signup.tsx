@@ -12,10 +12,13 @@ export function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const res = signup({ businessName, ownerName, email, password });
+    setSubmitting(true);
+    const res = await signup({ businessName, ownerName, email, password });
+    setSubmitting(false);
     if (!res.ok) { setError(res.error || 'Could not create account.'); return; }
     navigate('/', { replace: true });
   }
@@ -59,8 +62,8 @@ export function Signup() {
             style={st('width:100%;box-sizing:border-box;border:1px solid var(--border-default);border-radius:10px;padding:11px 13px;font-family:inherit;font-size:14px;color:var(--fg-primary);background:var(--bg-primary);outline:none;margin-bottom:22px')}
           />
 
-          <button type="submit" style={st('width:100%;border:none;background:var(--brand-primary);color:#fff;font-family:inherit;font-size:14.5px;font-weight:600;padding:12px;border-radius:11px;cursor:pointer;box-shadow:var(--shadow-ring-primary)')}>
-            Create account
+          <button type="submit" disabled={submitting} style={st(`width:100%;border:none;background:var(--brand-primary);color:#fff;font-family:inherit;font-size:14.5px;font-weight:600;padding:12px;border-radius:11px;cursor:pointer;box-shadow:var(--shadow-ring-primary);${submitting ? 'opacity:.65' : ''}`)}>
+            {submitting ? 'Creating account…' : 'Create account'}
           </button>
 
           <div style={st('text-align:center;font-size:13px;color:var(--fg-tertiary);margin-top:18px')}>
@@ -68,7 +71,7 @@ export function Signup() {
           </div>
         </form>
         <div style={st('text-align:center;font-size:11.5px;color:var(--fg-quaternary);margin-top:16px;line-height:16px')}>
-          This account lives only in this browser — there's no server behind it, so it won't sync across devices.
+          Synced securely via Supabase — log in from any device.
         </div>
       </div>
     </div>
