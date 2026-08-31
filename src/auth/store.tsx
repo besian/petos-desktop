@@ -46,6 +46,22 @@ async function fetchProfile(userId: string): Promise<Business | null> {
   return toBusiness(data as ProfileRow);
 }
 
+// A valid, signed-in Supabase auth user can end up with no matching
+// `profiles` row — e.g. signup's profile insert failed (schema not applied
+// yet, a network blip) after auth.signUp() itself already succeeded. Rather
+// than leaving that account permanently stuck (authenticated, but bounced
+// straight back to /login because there's no profile to load), fill in a
+// reasonable default profile the first time we notice one is missing.
+async function ensureProfile(userId: string, email: string): Promise<Business | null> {
+  const existing = await fetchProfile(userId);
+  if (existing) return existing;
+  const fallbackName = email.split('@')[0] || 'My business';
+  const { error } = await supabase.from('profiles').insert({ id: userId, business_name: fallbackName, owner_name: fallbackName, email });
+  if (error) { console.error('[petos] ensureProfile:', error.message); return null; }
+  await supabase.from('settings').insert({ owner_id: userId });
+  return fetchProfile(userId);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [account, setAccount] = useState<Business | null>(null);
@@ -58,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setSession(data.session);
       if (data.session) {
-        fetchProfile(data.session.user.id).then((profile) => { if (!cancelled) { setAccount(profile); setReady(true); } });
+        ensureProfile(data.session.user.id, data.session.user.email ?? '').then((profile) => { if (!cancelled) { setAccount(profile); setReady(true); } });
       } else {
         setReady(true);
       }
@@ -67,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       if (newSession) {
-        fetchProfile(newSession.user.id).then((profile) => { if (!cancelled) setAccount(profile); });
+        ensureProfile(newSession.user.id, newSession.user.email ?? '').then((profile) => { if (!cancelled) setAccount(profile); });
       } else {
         setAccount(null);
       }
@@ -106,7 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     if (error) return { ok: false, error: 'Incorrect email or password.' };
     setSession(data.session);
-    setAccount(await fetchProfile(data.user.id));
+    const profile = await ensureProfile(data.user.id, data.user.email ?? '');
+    setAccount(profile);
+    if (!profile) return { ok: false, error: 'Logged in, but could not load your business profile. Please try again.' };
     return { ok: true };
   }, []);
 
