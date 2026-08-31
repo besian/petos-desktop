@@ -5,7 +5,7 @@ import { CloseIcon, RepeatIcon, WarningIcon } from './icons';
 
 const nwSeg = 'display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;padding:9px 4px;border-radius:13px;cursor:pointer;font-family:inherit';
 
-export function NewWalkModal({ scale }: { scale: number }) {
+export function NewWalkModal() {
   const { state, actions } = useApp();
   if (!state.newWalkOpen) return null;
 
@@ -18,7 +18,7 @@ export function NewWalkModal({ scale }: { scale: number }) {
 
   return (
     <div style={st('position:fixed;inset:0;z-index:90;background:rgba(6,10,9,.55);display:flex;align-items:center;justify-content:center;animation:vIn .2s var(--ease-out)')}>
-      <div style={{ ...st('width:520px;max-width:calc(100% - 48px);background:var(--bg-app);border-radius:20px;border:1px solid var(--border-default);box-shadow:0 30px 80px -30px rgba(0,0,0,.5);overflow:hidden'), transform: `scale(${Math.max(scale, 0.001)})` }}>
+      <div style={st('width:520px;max-width:calc(100% - 48px);background:var(--bg-app);border-radius:20px;border:1px solid var(--border-default);box-shadow:0 30px 80px -30px rgba(0,0,0,.5);overflow:hidden')}>
         <div style={st('padding:20px 24px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border-subtle)')}>
           <div style={st('flex:1')}>
             <div style={st('font-size:19px;font-weight:700;color:var(--fg-primary);letter-spacing:-.01em')}>New walk</div>

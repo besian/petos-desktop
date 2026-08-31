@@ -1,7 +1,7 @@
 import { useApp } from '../state';
 import { CheckIcon } from './icons';
 
-export function Toast({ scale }: { scale: number }) {
+export function Toast() {
   const { state } = useApp();
   if (!state.toast) return null;
   return (
@@ -10,8 +10,7 @@ export function Toast({ scale }: { scale: number }) {
         position: 'fixed',
         bottom: 32,
         left: '50%',
-        transform: `translateX(-50%) scale(${Math.max(scale, 0.001)})`,
-        transformOrigin: 'bottom center',
+        transform: 'translateX(-50%)',
         background: 'var(--fg-primary)',
         color: 'var(--bg-primary)',
         fontSize: '13.5px',
