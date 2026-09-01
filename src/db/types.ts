@@ -28,6 +28,7 @@ export interface Client {
   keySafe?: string;
   emergencyContact?: string;
   vet?: string;
+  authUserId?: string | null; // set once they've joined the chat portal
   createdAt: string;
 }
 
@@ -43,6 +44,7 @@ export interface TeamMember {
   bio: string;
   skills: string[];
   status: 'On walk' | 'Available' | 'Off duty';
+  authUserId?: string | null; // set once they've joined the chat portal
   createdAt: string;
 }
 
@@ -141,6 +143,16 @@ export interface Business {
 export interface Note {
   id: string;
   text: string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  ownerId: string;
+  threadType: 'client' | 'team';
+  threadId: string;
+  sender: 'owner' | 'client' | 'team';
+  body: string;
   createdAt: string;
 }
 

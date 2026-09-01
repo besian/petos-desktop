@@ -110,7 +110,10 @@ export function TeamMember() {
               <div style={st('display:flex;justify-content:space-between;align-items:center')}><span style={st('font-size:13px;color:var(--fg-tertiary)')}>Joined</span><span style={st('font-size:13px;font-weight:600;color:var(--fg-primary)')}>{member.joined}</span></div>
             </div>
             <div style={st('display:flex;gap:9px;margin-top:16px')}>
-              <button onClick={() => setMessageOpen(true)} style={st('flex:1;border:none;background:var(--brand-primary);color:var(--brand-on-primary);font-family:inherit;font-size:13px;font-weight:600;padding:9px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow-ring-primary)')}>Message</button>
+              <button onClick={() => navigate(`/team/${member.id}/chat`)} style={st('flex:1;border:none;background:var(--brand-primary);color:var(--brand-on-primary);font-family:inherit;font-size:13px;font-weight:600;padding:9px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow-ring-primary)')}>Chat</button>
+              <button onClick={() => setMessageOpen(true)} style={st('flex:1;border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary);font-family:inherit;font-size:13px;font-weight:600;padding:9px;border-radius:10px;cursor:pointer')}>Email</button>
+            </div>
+            <div style={st('display:flex;gap:9px;margin-top:9px')}>
               <button onClick={() => navigate(`/schedule/new?walkerId=${member.id}`)} style={st('flex:1;border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary);font-family:inherit;font-size:13px;font-weight:600;padding:9px;border-radius:10px;cursor:pointer')}>Assign walk</button>
             </div>
           </div>

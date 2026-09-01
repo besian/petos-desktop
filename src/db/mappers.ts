@@ -39,7 +39,7 @@ export function clientFromRow(r: Record<string, unknown>): Client {
     id: r.id as string, name: r.name as string, addressLine1: r.address_line1 as string, addressLine2: r.address_line2 as string,
     email: r.email as string, phone: (r.phone as string) ?? undefined, memberSince: r.member_since as string,
     keySafe: (r.key_safe as string) ?? undefined, emergencyContact: (r.emergency_contact as string) ?? undefined,
-    vet: (r.vet as string) ?? undefined, createdAt: r.created_at as string,
+    vet: (r.vet as string) ?? undefined, authUserId: (r.auth_user_id as string) ?? null, createdAt: r.created_at as string,
   };
 }
 export function clientToRow(ownerId: string, c: Client) {
@@ -67,7 +67,8 @@ export function teamFromRow(r: Record<string, unknown>): TeamMember {
   return {
     id: r.id as string, name: r.name as string, role: r.role as string, area: r.area as string, color: r.color as string,
     phone: r.phone as string, email: r.email as string, joined: r.joined as string, bio: r.bio as string,
-    skills: (r.skills as string[]) ?? [], status: r.status as TeamMember['status'], createdAt: r.created_at as string,
+    skills: (r.skills as string[]) ?? [], status: r.status as TeamMember['status'], authUserId: (r.auth_user_id as string) ?? null,
+    createdAt: r.created_at as string,
   };
 }
 export function teamToRow(ownerId: string, t: TeamMember) {

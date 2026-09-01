@@ -85,7 +85,8 @@ export function Client() {
               <div style={st('font-size:21px;font-weight:700;color:var(--fg-primary);letter-spacing:-.01em')}>{client.name}</div>
               <div style={st('font-size:13.5px;color:var(--fg-tertiary)')}>{client.addressLine1} · member since {client.memberSince} · £{paidTotal.toFixed(0)} lifetime</div>
             </div>
-            <button onClick={() => setMessageOpen(true)} style={st('border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary);font-family:inherit;font-size:13px;font-weight:600;padding:9px 15px;border-radius:10px;cursor:pointer')}>Message</button>
+            <button onClick={() => navigate(`/clients/${client.id}/chat`)} style={st('border:none;background:var(--brand-primary);color:var(--brand-on-primary);font-family:inherit;font-size:13px;font-weight:600;padding:9px 15px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow-ring-primary)')}>Chat</button>
+            <button onClick={() => setMessageOpen(true)} style={st('border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary);font-family:inherit;font-size:13px;font-weight:600;padding:9px 15px;border-radius:10px;cursor:pointer')}>Email</button>
             <button onClick={openEdit} style={st('border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary);font-family:inherit;font-size:13px;font-weight:600;padding:9px;border-radius:10px;cursor:pointer')}><EditIcon /></button>
           </div>
 

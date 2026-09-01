@@ -8,11 +8,24 @@ export interface AuthResult {
   error?: string;
 }
 
+export type Role = 'owner' | 'client' | 'team';
+
+export interface PortalIdentity {
+  role: 'client' | 'team';
+  id: string;
+  ownerId: string;
+  name: string;
+}
+
 interface AuthContextValue {
-  account: Business | null;
+  account: Business | null; // set only when role === 'owner'
+  portal: PortalIdentity | null; // set only when role is 'client' or 'team'
+  role: Role | null;
   ready: boolean;
   signup: (input: { businessName: string; ownerName: string; email: string; password: string }) => Promise<AuthResult>;
   login: (input: { email: string; password: string }) => Promise<AuthResult>;
+  portalSignup: (input: { email: string; password: string }) => Promise<AuthResult>;
+  portalLogin: (input: { email: string; password: string }) => Promise<AuthResult>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
 }
@@ -51,7 +64,10 @@ async function fetchProfile(userId: string): Promise<Business | null> {
 // yet, a network blip) after auth.signUp() itself already succeeded. Rather
 // than leaving that account permanently stuck (authenticated, but bounced
 // straight back to /login because there's no profile to load), fill in a
-// reasonable default profile the first time we notice one is missing.
+// reasonable default profile the first time we notice one is missing. Only
+// ever called from the owner-facing login() below — never from session
+// restore, or a portal (client/team) user's first-ever session would get
+// mistakenly promoted to a fresh, empty business owner account.
 async function ensureProfile(userId: string, email: string): Promise<Business | null> {
   const existing = await fetchProfile(userId);
   if (existing) return existing;
@@ -62,10 +78,45 @@ async function ensureProfile(userId: string, email: string): Promise<Business | 
   return fetchProfile(userId);
 }
 
+interface Identity {
+  role: Role | null;
+  account: Business | null;
+  portal: PortalIdentity | null;
+}
+
+const noIdentity: Identity = { role: null, account: null, portal: null };
+
+async function resolveIdentity(userId: string): Promise<Identity> {
+  const profile = await fetchProfile(userId);
+  if (profile) return { role: 'owner', account: profile, portal: null };
+
+  const clientRow = await supabase.from('clients').select('id,owner_id,name').eq('auth_user_id', userId).maybeSingle();
+  if (clientRow.data) {
+    const d = clientRow.data as { id: string; owner_id: string; name: string };
+    return { role: 'client', account: null, portal: { role: 'client', id: d.id, ownerId: d.owner_id, name: d.name } };
+  }
+
+  const teamRow = await supabase.from('team_members').select('id,owner_id,name').eq('auth_user_id', userId).maybeSingle();
+  if (teamRow.data) {
+    const d = teamRow.data as { id: string; owner_id: string; name: string };
+    return { role: 'team', account: null, portal: { role: 'team', id: d.id, ownerId: d.owner_id, name: d.name } };
+  }
+
+  return noIdentity;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [account, setAccount] = useState<Business | null>(null);
+  const [portal, setPortal] = useState<PortalIdentity | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
   const [ready, setReady] = useState(false);
+
+  const applyIdentity = useCallback((identity: Identity) => {
+    setAccount(identity.account);
+    setPortal(identity.portal);
+    setRole(identity.role);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setSession(data.session);
       if (data.session) {
-        ensureProfile(data.session.user.id, data.session.user.email ?? '').then((profile) => { if (!cancelled) { setAccount(profile); setReady(true); } });
+        resolveIdentity(data.session.user.id).then((identity) => { if (!cancelled) { applyIdentity(identity); setReady(true); } });
       } else {
         setReady(true);
       }
@@ -83,14 +134,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       if (newSession) {
-        ensureProfile(newSession.user.id, newSession.user.email ?? '').then((profile) => { if (!cancelled) setAccount(profile); });
+        resolveIdentity(newSession.user.id).then((identity) => { if (!cancelled) applyIdentity(identity); });
       } else {
-        setAccount(null);
+        applyIdentity(noIdentity);
       }
     });
 
     return () => { cancelled = true; sub.subscription.unsubscribe(); };
-  }, []);
+  }, [applyIdentity]);
 
   const signup = useCallback<AuthContextValue['signup']>(async ({ businessName, ownerName, email, password }) => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -115,6 +166,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setSession(data.session);
     setAccount(await fetchProfile(data.user.id));
+    setPortal(null);
+    setRole('owner');
     return { ok: true };
   }, []);
 
@@ -124,15 +177,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(data.session);
     const profile = await ensureProfile(data.user.id, data.user.email ?? '');
     setAccount(profile);
+    setPortal(null);
+    setRole(profile ? 'owner' : null);
     if (!profile) return { ok: false, error: 'Logged in, but could not load your business profile. Please try again.' };
     return { ok: true };
   }, []);
 
+  const portalSignup = useCallback<AuthContextValue['portalSignup']>(async ({ email, password }) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (password.length < 6) return { ok: false, error: 'Password must be at least 6 characters.' };
+
+    const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password });
+    if (error) return { ok: false, error: error.message };
+    if (!data.session || !data.user) {
+      return { ok: false, error: 'Account created — check your email to confirm it, then log in.' };
+    }
+
+    const { error: claimError } = await supabase.rpc('claim_portal_identity');
+    if (claimError) console.error('[petos] claim_portal_identity:', claimError.message);
+
+    setSession(data.session);
+    const identity = await resolveIdentity(data.user.id);
+    applyIdentity(identity);
+    if (identity.role !== 'client' && identity.role !== 'team') {
+      return { ok: false, error: "We couldn't find a client or team account for this email — ask your dog walker to add you first, then try again." };
+    }
+    return { ok: true };
+  }, [applyIdentity]);
+
+  const portalLogin = useCallback<AuthContextValue['portalLogin']>(async ({ email, password }) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+    if (error) return { ok: false, error: 'Incorrect email or password.' };
+    setSession(data.session);
+    const identity = await resolveIdentity(data.user.id);
+    applyIdentity(identity);
+    if (identity.role !== 'client' && identity.role !== 'team') {
+      return { ok: false, error: "This doesn't look like a client/team account — try the business login instead." };
+    }
+    return { ok: true };
+  }, [applyIdentity]);
+
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setSession(null);
-    setAccount(null);
-  }, []);
+    applyIdentity(noIdentity);
+  }, [applyIdentity]);
 
   const deleteAccount = useCallback(async () => {
     if (!session) return;
@@ -151,14 +240,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.from('recs').delete().eq('owner_id', userId),
       supabase.from('notes').delete().eq('owner_id', userId),
       supabase.from('settings').delete().eq('owner_id', userId),
+      supabase.from('messages').delete().eq('owner_id', userId),
       supabase.from('profiles').delete().eq('id', userId),
     ]);
     await supabase.auth.signOut();
     setSession(null);
-    setAccount(null);
-  }, [session]);
+    applyIdentity(noIdentity);
+  }, [session, applyIdentity]);
 
-  const value = useMemo(() => ({ account, ready, signup, login, logout, deleteAccount }), [account, ready, signup, login, logout, deleteAccount]);
+  const value = useMemo(() => ({
+    account, portal, role, ready, signup, login, portalSignup, portalLogin, logout, deleteAccount,
+  }), [account, portal, role, ready, signup, login, portalSignup, portalLogin, logout, deleteAccount]);
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
