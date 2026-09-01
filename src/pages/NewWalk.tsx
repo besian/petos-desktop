@@ -58,7 +58,7 @@ export function NewWalk() {
 
   if (db.pets.length === 0) {
     return (
-      <div style={st('animation:vIn .3s var(--ease-out);max-width:640px;margin:0 auto;text-align:center;padding:60px 0')}>
+      <div style={st('animation:vIn .3s var(--ease-out);text-align:center;padding:60px 0')}>
         <div style={st('font-size:15px;color:var(--fg-tertiary);margin-bottom:14px')}>Add a pet first before scheduling a walk.</div>
         <button onClick={() => navigate('/pets/new')} style={st(btnPrimary)}>Add a pet</button>
       </div>
@@ -66,7 +66,7 @@ export function NewWalk() {
   }
 
   return (
-    <div style={st('animation:vIn .3s var(--ease-out);max-width:640px;margin:0 auto')}>
+    <div style={st('animation:vIn .3s var(--ease-out)')}>
       <button onClick={() => navigate(-1)} style={st('display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary);font-family:inherit;font-size:13px;font-weight:600;padding:8px 13px;border-radius:10px;cursor:pointer;margin-bottom:18px')}>
         <ChevronLeftIcon />Back
       </button>
