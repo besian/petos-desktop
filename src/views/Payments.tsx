@@ -10,7 +10,6 @@ const payPill: Record<string, [string, string]> = {
   overdue: ['Overdue', 'background:var(--color-error-50);color:var(--color-error-700)'],
   draft: ['Draft', 'background:var(--bg-tertiary);color:var(--fg-tertiary)'],
 };
-const payAction: Record<string, string> = { paid: 'View', outstanding: 'Remind', overdue: 'Remind', draft: 'Send' };
 
 function amountOf(items: { amount: string }[]) {
   return items.reduce((s, it) => s + parseFloat(it.amount.replace('£', '')), 0);
@@ -18,7 +17,7 @@ function amountOf(items: { amount: string }[]) {
 
 export function Payments() {
   const navigate = useNavigate();
-  const { db, sendInvoice } = useDB();
+  const { db } = useDB();
 
   const monthPrefix = todayISO().slice(0, 7);
   const monthInvoices = db.invoices.filter((i) => i.issued.startsWith(monthPrefix));
@@ -52,29 +51,24 @@ export function Payments() {
         ))}
       </div>
       <div style={st('background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--card-shadow);overflow:hidden')}>
-        <div style={st('display:grid;grid-template-columns:1.4fr 1.4fr 1fr 1fr 1fr;padding:13px 20px;border-bottom:1px solid var(--border-subtle);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-quaternary)')}>
-          <span>Invoice</span><span>Client</span><span>Amount</span><span>Status</span><span style={st('text-align:right')}>Action</span>
+        <div style={st('display:grid;grid-template-columns:1.4fr 1.4fr 1fr 1fr;padding:13px 20px;border-bottom:1px solid var(--border-subtle);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-quaternary)')}>
+          <span>Invoice</span><span>Client</span><span>Amount</span><span>Status</span>
         </div>
         {rows.length === 0 ? (
           <div style={st('padding:40px;text-align:center;font-size:13.5px;color:var(--fg-tertiary)')}>No invoices yet.</div>
         ) : rows.map((inv) => {
           const client = clientById.get(inv.clientId);
-          const action = payAction[inv.status];
           return (
-            <div key={inv.id} style={st('display:grid;grid-template-columns:1.4fr 1.4fr 1fr 1fr 1fr;align-items:center;padding:13px 20px;border-bottom:1px solid var(--border-subtle)')}>
+            <button
+              key={inv.id}
+              onClick={() => navigate(`/payments/${inv.id}`)}
+              style={st('display:grid;grid-template-columns:1.4fr 1.4fr 1fr 1fr;align-items:center;padding:13px 20px;border-bottom:1px solid var(--border-subtle);border-left:none;border-right:none;border-top:none;background:transparent;cursor:pointer;font-family:inherit;text-align:left;width:100%')}
+            >
               <span style={st('font-size:13px;color:var(--fg-secondary);font-variant-numeric:tabular-nums')}>{inv.id}</span>
               <span style={st('font-size:13.5px;font-weight:600;color:var(--fg-primary)')}>{client?.name || '—'}</span>
               <span style={st('font-size:14px;font-weight:700;color:var(--fg-primary)')}>£{amountOf(inv.items).toFixed(2)}</span>
               <span><span style={st(`font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px;${payPill[inv.status][1]}`)}>{payPill[inv.status][0]}</span></span>
-              <span style={st('text-align:right')}>
-                <button
-                  onClick={() => (action === 'View' ? navigate(`/payments/${inv.id}`) : action === 'Send' ? (sendInvoice(inv.id), navigate(`/payments/${inv.id}`)) : navigate(`/payments/${inv.id}`))}
-                  style={st('font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:9px;cursor:pointer;border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary)')}
-                >
-                  {action}
-                </button>
-              </span>
-            </div>
+            </button>
           );
         })}
       </div>
