@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { st } from '../lib/st';
 import { useAuth } from '../auth/store';
 import { PawIcon } from '../components/icons';
@@ -7,7 +7,8 @@ import { PawIcon } from '../components/icons';
 export function PortalSignup() {
   const { portalSignup } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [params] = useSearchParams();
+  const [email, setEmail] = useState(params.get('email') || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);

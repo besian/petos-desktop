@@ -50,3 +50,13 @@ export function messageEmailHtml(greeting: string, messageText: string, signOff:
 <p style="font-size:15px;line-height:23px;margin:0;">${escapeHtml(signOff)}</p>
 `);
 }
+
+/** Renders an email with a prominent button link (e.g. a chat-portal invite). */
+export function inviteEmailHtml(greeting: string, bodyText: string, link: string, buttonLabel: string, signOff: string): string {
+  return emailShell(`
+<p style="font-size:15px;line-height:23px;margin:0 0 14px;">${escapeHtml(greeting)}</p>
+<p style="font-size:15px;line-height:23px;margin:0 0 20px;">${textToHtml(bodyText)}</p>
+<p style="margin:0 0 20px;"><a href="${escapeHtml(link)}" style="display:inline-block;background:#127A63;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:10px;">${escapeHtml(buttonLabel)}</a></p>
+<p style="font-size:15px;line-height:23px;margin:0;">${escapeHtml(signOff)}</p>
+`);
+}
