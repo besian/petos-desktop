@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { st } from '../lib/st';
 import { useDB } from '../db/store';
 import { useUI } from '../ui/store';
+import { useAuth } from '../auth/store';
 import { usePageHeader } from '../ui/pageHeader';
+import { sendEmail, messageEmailHtml } from '../lib/email';
 import { relativeDay } from '../db/dates';
 import { ChevronLeftIcon, PlusIcon, TrashIcon, EditIcon } from '../components/icons';
 import { ImageSlot } from '../components/ImageSlot';
@@ -23,9 +25,11 @@ export function Client() {
   const navigate = useNavigate();
   const { db, updateClient, deleteClient, deletePet, updatePet } = useDB();
   const { actions } = useUI();
+  const { account } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageText, setMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [confirmDeleteClient, setConfirmDeleteClient] = useState(false);
   const [confirmDeletePet, setConfirmDeletePet] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: '', addressLine1: '', addressLine2: '', email: '', keySafe: '', emergencyContact: '', vet: '' });
@@ -200,13 +204,31 @@ export function Client() {
       ) : null}
 
       {messageOpen ? (
-        <Modal title={`Message ${client.name}`} sub="Sends nothing for real — there's no email/SMS backend, this just simulates the flow" onClose={() => setMessageOpen(false)} footer={<>
+        <Modal title={`Message ${client.name}`} sub={`Sends a real email to ${client.email}`} onClose={() => setMessageOpen(false)} footer={<>
           <button onClick={() => setMessageOpen(false)} style={st(btnSecondary)}>Cancel</button>
           <button
-            onClick={() => { setMessageOpen(false); actions.showToast(`Message sent to ${client.name}`); setMessageText(''); }}
-            style={st(btnPrimary)}
+            disabled={sendingMessage || !messageText.trim()}
+            onClick={async () => {
+              setSendingMessage(true);
+              const businessName = account?.businessName || 'Your dog walker';
+              const result = await sendEmail({
+                to: client.email,
+                subject: `Message from ${businessName}`,
+                html: messageEmailHtml(`Hi ${client.name.split(' ')[0]},`, messageText, `— ${account?.ownerName || businessName}`),
+                replyTo: account?.email,
+              });
+              setSendingMessage(false);
+              if (result.ok) {
+                setMessageOpen(false);
+                setMessageText('');
+                actions.showToast(`Message sent to ${client.name}`);
+              } else {
+                actions.showToast(result.error || 'Could not send message');
+              }
+            }}
+            style={st(`${btnPrimary}${sendingMessage ? ';opacity:.65' : ''}`)}
           >
-            Send
+            {sendingMessage ? 'Sending…' : 'Send'}
           </button>
         </>}>
           <textarea

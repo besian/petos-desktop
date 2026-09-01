@@ -1,17 +1,22 @@
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { st } from '../lib/st';
 import { useDB } from '../db/store';
 import { useUI } from '../ui/store';
+import { useAuth } from '../auth/store';
 import { usePageHeader } from '../ui/pageHeader';
 import { ChevronLeftIcon, EditIcon, SparkleIcon } from '../components/icons';
 import { ImageSlot } from '../components/ImageSlot';
 import { btnSecondary } from '../components/Modal';
+import { sendEmail, messageEmailHtml } from '../lib/email';
 
 export function ReportView() {
   const { reportId } = useParams();
   const navigate = useNavigate();
   const { db, sendReport } = useDB();
   const { actions } = useUI();
+  const { account } = useAuth();
+  const [sending, setSending] = useState(false);
 
   const rd = db.reports.find((r) => r.id === reportId);
   const pet = rd ? db.pets.find((p) => p.id === rd.petId) : null;
@@ -31,6 +36,28 @@ export function ReportView() {
 
   const repPending = rd.status === 'pending';
 
+  const handleSend = async () => {
+    if (!owner?.email) {
+      sendReport(rd.id);
+      actions.showToast('Report marked as sent (no owner email on file)');
+      navigate('/reports');
+      return;
+    }
+    setSending(true);
+    const businessName = account?.businessName || 'PetOS';
+    const result = await sendEmail({
+      to: owner.email,
+      subject: `${pet.name}'s walk report — ${rd.when}`,
+      html: messageEmailHtml(`Hi ${owner.name.split(' ')[0]},`, `${rd.summary}\n\nDistance: ${rd.distance} · Duration: ${rd.duration}${walker ? ' · Walker: ' + walker.name : ''}`, `— ${account?.ownerName || businessName}`),
+      replyTo: account?.email,
+    });
+    setSending(false);
+    if (!result.ok) { actions.showToast(result.error || 'Could not send report'); return; }
+    sendReport(rd.id);
+    actions.showToast('Report sent to owner');
+    navigate('/reports');
+  };
+
   return (
     <div style={st('animation:vIn .3s var(--ease-out);max-width:820px;margin:0 auto')}>
       <div style={st('display:flex;align-items:center;gap:10px;margin-bottom:18px')}>
@@ -41,8 +68,8 @@ export function ReportView() {
         <button onClick={() => navigate(`/reports/${rd.id}/edit`)} style={st('display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border-default);background:var(--bg-primary);color:var(--fg-secondary);font-family:inherit;font-size:13px;font-weight:600;padding:8px 14px;border-radius:10px;cursor:pointer')}>
           <EditIcon />Edit draft
         </button>
-        <button onClick={() => { sendReport(rd.id); actions.showToast('Report sent to owner'); navigate('/reports'); }} style={st('border:none;background:var(--brand-primary);color:var(--brand-on-primary);font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow-ring-primary)')}>
-          {repPending ? 'Approve & send' : 'Resend to owner'}
+        <button disabled={sending} onClick={handleSend} style={st(`border:none;background:var(--brand-primary);color:var(--brand-on-primary);font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;box-shadow:var(--shadow-ring-primary);${sending ? 'opacity:.65' : ''}`)}>
+          {sending ? 'Sending…' : repPending ? 'Approve & send' : 'Resend to owner'}
         </button>
       </div>
 

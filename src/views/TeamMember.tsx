@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { st } from '../lib/st';
 import { useDB } from '../db/store';
 import { useUI } from '../ui/store';
+import { useAuth } from '../auth/store';
 import { usePageHeader } from '../ui/pageHeader';
+import { sendEmail, messageEmailHtml } from '../lib/email';
 import { todayISO, startOfWeek, addDays } from '../db/dates';
 import { ChevronLeftIcon, ChevronRightIcon, EditIcon, TrashIcon } from '../components/icons';
 import { ImageSlot } from '../components/ImageSlot';
@@ -17,8 +19,11 @@ export function TeamMember() {
   const navigate = useNavigate();
   const { db, updateTeamMember, deleteTeamMember } = useDB();
   const { actions } = useUI();
+  const { account } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', role: '', area: '', phone: '', email: '', bio: '', skillsCSV: '', status: 'Available' as 'On walk' | 'Available' | 'Off duty' });
 
@@ -161,11 +166,37 @@ export function TeamMember() {
       ) : null}
 
       {messageOpen ? (
-        <Modal title={`Message ${member.name}`} sub="Simulated — there's no messaging backend" onClose={() => setMessageOpen(false)} footer={<>
+        <Modal title={`Message ${member.name}`} sub={`Sends a real email to ${member.email}`} onClose={() => setMessageOpen(false)} footer={<>
           <button onClick={() => setMessageOpen(false)} style={st(btnSecondary)}>Cancel</button>
-          <button onClick={() => { setMessageOpen(false); actions.showToast(`Message sent to ${member.name}`); }} style={st(btnPrimary)}>Send</button>
+          <button
+            disabled={sendingMessage || !messageText.trim()}
+            onClick={async () => {
+              setSendingMessage(true);
+              const businessName = account?.businessName || 'PetOS';
+              const result = await sendEmail({
+                to: member.email,
+                subject: `Message from ${businessName}`,
+                html: messageEmailHtml(`Hi ${member.name.split(' ')[0]},`, messageText, `— ${account?.ownerName || businessName}`),
+                replyTo: account?.email,
+              });
+              setSendingMessage(false);
+              if (result.ok) {
+                setMessageOpen(false);
+                setMessageText('');
+                actions.showToast(`Message sent to ${member.name}`);
+              } else {
+                actions.showToast(result.error || 'Could not send message');
+              }
+            }}
+            style={st(`${btnPrimary}${sendingMessage ? ';opacity:.65' : ''}`)}
+          >
+            {sendingMessage ? 'Sending…' : 'Send'}
+          </button>
         </>}>
-          <textarea placeholder={`Hi ${member.name.split(' ')[0]}, …`} style={st('width:100%;box-sizing:border-box;min-height:120px;resize:vertical;border:1px solid var(--border-default);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14px;line-height:21px;color:var(--fg-primary);background:var(--bg-primary);outline:none')} />
+          <textarea
+            value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder={`Hi ${member.name.split(' ')[0]}, …`}
+            style={st('width:100%;box-sizing:border-box;min-height:120px;resize:vertical;border:1px solid var(--border-default);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14px;line-height:21px;color:var(--fg-primary);background:var(--bg-primary);outline:none')}
+          />
         </Modal>
       ) : null}
 
