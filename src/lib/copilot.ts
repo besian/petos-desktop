@@ -1,63 +1,57 @@
 import type { DB } from '../db/types';
 import type { CopilotResultRow } from '../ui/store';
-import { todayISO, addDays, mondayIndex } from '../db/dates';
-
-const DAILY_CAPACITY = 8;
-
-function clientName(db: DB, clientId: string): string {
-  return db.clients.find((c) => c.id === clientId)?.name || 'Unknown client';
-}
-
-function petColor(db: DB, petId: string): string {
-  return db.pets.find((p) => p.id === petId)?.color || '#6E7A77';
-}
+import { todayISO, addDays } from '../db/dates';
 
 export interface CopilotAnswer {
   text: string;
   rows: CopilotResultRow[] | null;
 }
 
-export function answerCopilot(db: DB, question: string): CopilotAnswer {
-  const q = question.toLowerCase();
+function amountOf(items: { amount: string }[]) {
+  return items.reduce((s, it) => s + parseFloat(it.amount.replace('£', '')), 0);
+}
 
-  if (q.includes('paid') || q.includes('owe') || q.includes('unpaid') || q.includes('outstanding')) {
-    const due = db.invoices.filter((i) => i.status === 'outstanding' || i.status === 'overdue');
-    if (due.length === 0) return { text: 'Everything is paid up — no outstanding invoices right now.', rows: null };
-    const overdue = due.filter((i) => i.status === 'overdue');
-    const rows: CopilotResultRow[] = due.slice(0, 5).map((i) => {
-      const amt = i.items.reduce((s, it) => s + parseFloat(it.amount.replace('£', '')), 0);
-      const name = clientName(db, i.clientId);
-      return { color: petColor(db, i.petId), initial: name[0], name, sub: `£${amt.toFixed(2)} · ${i.status === 'overdue' ? 'overdue' : 'due ' + i.due}` };
-    });
-    const text = overdue.length > 0
-      ? `${due.length} invoice${due.length === 1 ? ' is' : 's are'} outstanding and ${overdue.length} ${overdue.length === 1 ? 'is' : 'are'} overdue. Want me to send reminders?`
-      : `${due.length} invoice${due.length === 1 ? ' is' : 's are'} outstanding, none overdue yet.`;
-    return { text, rows };
-  }
-
-  if (q.includes('medic') || q.includes('health') || q.includes('care')) {
-    const flagged = db.pets.filter((p) => p.alert || p.notes);
-    if (flagged.length === 0) return { text: 'No dogs currently have medical or care instructions on file.', rows: null };
-    const rows: CopilotResultRow[] = flagged.map((p) => ({ color: p.color, initial: p.name[0], name: p.name, sub: p.notes || p.alert || '' }));
-    return { text: `${flagged.length} dog${flagged.length === 1 ? '' : 's'} have care instructions on file:`, rows };
-  }
-
-  if (q.includes('space') || q.includes('slot') || q.includes('thursday') || q.includes('capacity')) {
-    let d = todayISO();
-    for (let i = 0; i < 8; i++) { if (mondayIndex(d) === 3) break; d = addDays(d, 1); } // walk forward to the next Thursday
-    const booked = db.walks.filter((w) => w.date === d && w.status !== 'cancelled').length;
-    const open = Math.max(0, DAILY_CAPACITY - booked);
-    if (open === 0) return { text: `Thursday (${d}) is fully booked — ${booked} walks scheduled.`, rows: null };
-    return { text: `Thursday has ${open} open slot${open === 1 ? '' : 's'} out of ${DAILY_CAPACITY} (${booked} already booked).`, rows: null };
-  }
-
+// A compact, human-readable digest of the business's current data — sent
+// to the Copilot API route as grounding context. Trimmed to what a
+// dog-walking-business Q&A would plausibly need, rather than the raw DB
+// (keeps the request small and avoids exposing internal ids/fields).
+function buildSnapshot(db: DB) {
   const today = todayISO();
-  const todaysWalks = db.walks.filter((w) => w.date === today && w.status !== 'cancelled');
-  const done = todaysWalks.filter((w) => w.status === 'done').length;
-  const pendingReports = db.reports.filter((r) => r.status === 'pending').length;
-  const overdueCount = db.invoices.filter((i) => i.status === 'overdue').length;
-  const parts = [`${done} of ${todaysWalks.length} walks done today`];
-  if (pendingReports) parts.push(`${pendingReports} report${pendingReports === 1 ? '' : 's'} awaiting approval`);
-  if (overdueCount) parts.push(`${overdueCount} invoice${overdueCount === 1 ? '' : 's'} overdue`);
-  return { text: parts.join(' · ') + '. Ask me about payments, medication, or open slots for specifics.', rows: null };
+  const weekEnd = addDays(today, 6);
+  const clientById = new Map(db.clients.map((c) => [c.id, c]));
+  const petById = new Map(db.pets.map((p) => [p.id, p]));
+  const teamById = new Map(db.team.map((t) => [t.id, t]));
+
+  return {
+    today,
+    pets: db.pets.map((p) => ({
+      name: p.name, breed: p.breed, owner: clientById.get(p.clientId)?.name || 'Unknown', color: p.color,
+      alert: p.alert || undefined, notes: p.notes || undefined,
+    })),
+    team: db.team.map((t) => ({ name: t.name, role: t.role, status: t.status })),
+    walksToday: db.walks.filter((w) => w.date === today && w.status !== 'cancelled').map((w) => ({
+      time: w.time, pet: petById.get(w.petId)?.name || 'Unknown', walker: teamById.get(w.walkerId)?.name || 'Unassigned', status: w.status, route: w.route,
+    })),
+    walksThisWeek: db.walks.filter((w) => w.date >= today && w.date <= weekEnd && w.status !== 'cancelled').map((w) => ({
+      date: w.date, time: w.time, pet: petById.get(w.petId)?.name || 'Unknown', walker: teamById.get(w.walkerId)?.name || 'Unassigned',
+    })),
+    invoicesOutstanding: db.invoices.filter((i) => i.status === 'outstanding' || i.status === 'overdue').map((i) => ({
+      client: clientById.get(i.clientId)?.name || 'Unknown', pet: petById.get(i.petId)?.name || 'Unknown',
+      amount: amountOf(i.items), status: i.status, due: i.due,
+    })),
+    reportsPendingApproval: db.reports.filter((r) => r.status === 'pending').length,
+  };
+}
+
+export async function askCopilot(db: DB, question: string): Promise<CopilotAnswer> {
+  const res = await fetch('/api/copilot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, snapshot: buildSnapshot(db) }),
+  });
+  if (!res.ok) {
+    throw new Error(`Copilot request failed (${res.status})`);
+  }
+  const data = await res.json();
+  return { text: data.text, rows: data.rows ?? null };
 }

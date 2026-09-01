@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { st } from '../lib/st';
 import { useUI } from '../ui/store';
 import { useDB } from '../db/store';
-import { answerCopilot } from '../lib/copilot';
+import { askCopilot } from '../lib/copilot';
 import { CloseIcon, SparkleIcon, SendIcon } from './icons';
 
 const chips = ['Who hasn’t paid?', 'Dogs with medication?', 'Space next Thursday?'];
@@ -11,16 +11,22 @@ export function CopilotPanel() {
   const { state, actions } = useUI();
   const { db } = useDB();
   const [draft, setDraft] = useState('');
+  const [thinking, setThinking] = useState(false);
   if (!state.copilotOpen) return null;
 
-  const ask = (question: string) => {
-    if (!question.trim()) return;
+  const ask = async (question: string) => {
+    if (!question.trim() || thinking) return;
     actions.pushCopilotUser(question);
-    setTimeout(() => {
-      const a = answerCopilot(db, question);
-      actions.pushCopilotAI(a.text, a.rows);
-    }, 500);
     setDraft('');
+    setThinking(true);
+    try {
+      const a = await askCopilot(db, question);
+      actions.pushCopilotAI(a.text, a.rows);
+    } catch {
+      actions.pushCopilotAI("I couldn't reach Copilot just now — please try again in a moment.", null);
+    } finally {
+      setThinking(false);
+    }
   };
 
   const onSubmit = (e: FormEvent) => {
@@ -53,6 +59,15 @@ export function CopilotPanel() {
             </div>
           </div>
         ))}
+        {thinking ? (
+          <div style={st('display:flex;justify-content:flex-start')}>
+            <div style={st('background:var(--bg-tertiary);border-radius:14px 14px 14px 4px;padding:10px 13px;display:flex;gap:4px;align-items:center')}>
+              {[0, 1, 2].map((i) => (
+                <span key={i} style={{ ...st('width:5px;height:5px;border-radius:99px;background:var(--fg-tertiary);animation:copilotDot 1.1s ease-in-out infinite'), animationDelay: `${i * 0.15}s` }} />
+              ))}
+            </div>
+          </div>
+        ) : null}
         {state.copilotResult ? (
           <div style={st('background:var(--bg-secondary);border:1px solid var(--border-subtle);border-radius:14px;padding:6px')}>
             {state.copilotResult.map((r, i) => (
@@ -73,7 +88,8 @@ export function CopilotPanel() {
             <button
               key={label}
               onClick={() => ask(label)}
-              style={st('flex:none;white-space:nowrap;font-size:12px;font-weight:600;color:var(--fg-secondary);background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:999px;padding:7px 12px;cursor:pointer;font-family:inherit')}
+              disabled={thinking}
+              style={st(`flex:none;white-space:nowrap;font-size:12px;font-weight:600;color:var(--fg-secondary);background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:999px;padding:7px 12px;cursor:pointer;font-family:inherit;${thinking ? 'opacity:.5' : ''}`)}
             >
               {label}
             </button>
@@ -84,11 +100,13 @@ export function CopilotPanel() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Ask anything…"
+            disabled={thinking}
             style={st('flex:1;min-width:0;border:none;background:transparent;outline:none;font-family:inherit;font-size:13px;color:var(--fg-primary)')}
           />
           <button
             type="submit"
-            style={st('width:34px;height:34px;border-radius:9px;border:none;background:var(--brand-primary);color:var(--brand-on-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none')}
+            disabled={thinking}
+            style={st(`width:34px;height:34px;border-radius:9px;border:none;background:var(--brand-primary);color:var(--brand-on-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none;${thinking ? 'opacity:.5' : ''}`)}
           >
             <SendIcon />
           </button>
