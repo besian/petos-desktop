@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { ProposedAction } from '../lib/copilotActions';
 
 export type Theme = 'light' | 'dark';
 
@@ -20,6 +21,7 @@ export interface UIState {
   copilotOpen: boolean;
   copilotThread: CopilotMessage[];
   copilotResult: CopilotResultRow[] | null;
+  copilotPendingAction: ProposedAction | null;
   search: string;
   toast: string;
   overviewEdit: boolean;
@@ -33,6 +35,7 @@ const initialState: UIState = {
   copilotOpen: true,
   copilotThread: [{ role: 'ai', text: 'Morning! Ask me anything about the business.' }],
   copilotResult: null,
+  copilotPendingAction: null,
   search: '',
   toast: '',
   overviewEdit: false,
@@ -52,7 +55,8 @@ interface UIActions {
   showWidget: (id: string) => void;
   setScheduleFilter: (key: string) => void;
   pushCopilotUser: (text: string) => void;
-  pushCopilotAI: (text: string, rows: CopilotResultRow[] | null) => void;
+  pushCopilotAI: (text: string, rows: CopilotResultRow[] | null, action: ProposedAction | null) => void;
+  clearPendingAction: () => void;
 }
 
 const UIContext = createContext<{ state: UIState; actions: UIActions } | null>(null);
@@ -77,8 +81,9 @@ export function UIProvider({ children }: { children: ReactNode }) {
     hideWidget: (id) => setState((s) => ({ ...s, overviewOrder: s.overviewOrder.filter((w) => w !== id), overviewHidden: [...s.overviewHidden, id] })),
     showWidget: (id) => setState((s) => ({ ...s, overviewHidden: s.overviewHidden.filter((w) => w !== id), overviewOrder: [...s.overviewOrder, id] })),
     setScheduleFilter: (key) => setState((s) => ({ ...s, scheduleFilter: key })),
-    pushCopilotUser: (text) => setState((s) => ({ ...s, copilotThread: [...s.copilotThread, { role: 'user', text }], copilotResult: null })),
-    pushCopilotAI: (text, rows) => setState((s) => ({ ...s, copilotThread: [...s.copilotThread, { role: 'ai', text }], copilotResult: rows })),
+    pushCopilotUser: (text) => setState((s) => ({ ...s, copilotThread: [...s.copilotThread, { role: 'user', text }], copilotResult: null, copilotPendingAction: null })),
+    pushCopilotAI: (text, rows, action) => setState((s) => ({ ...s, copilotThread: [...s.copilotThread, { role: 'ai', text }], copilotResult: rows, copilotPendingAction: action })),
+    clearPendingAction: () => setState((s) => ({ ...s, copilotPendingAction: null })),
   }), [showToast]);
 
   const value = useMemo(() => ({ state, actions }), [state, actions]);

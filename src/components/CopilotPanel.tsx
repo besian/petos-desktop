@@ -1,17 +1,27 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { st } from '../lib/st';
 import { useUI } from '../ui/store';
 import { useDB } from '../db/store';
 import { askCopilot } from '../lib/copilot';
+import { resolveAction } from '../lib/copilotActions';
 import { CloseIcon, SparkleIcon, SendIcon } from './icons';
+import { btnPrimary, btnSecondary } from './Modal';
 
 const chips = ['Who hasn’t paid?', 'Dogs with medication?', 'Space next Thursday?'];
 
 export function CopilotPanel() {
   const { state, actions } = useUI();
-  const { db } = useDB();
+  const dbCtx = useDB();
+  const { db } = dbCtx;
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const resolution = useMemo(
+    () => (state.copilotPendingAction ? resolveAction(state.copilotPendingAction, dbCtx) : null),
+    [state.copilotPendingAction, dbCtx],
+  );
+
   if (!state.copilotOpen) return null;
 
   const ask = async (question: string) => {
@@ -21,12 +31,31 @@ export function CopilotPanel() {
     setThinking(true);
     try {
       const a = await askCopilot(db, question);
-      actions.pushCopilotAI(a.text, a.rows);
+      actions.pushCopilotAI(a.text, a.rows, a.action);
     } catch {
-      actions.pushCopilotAI("I couldn't reach Copilot just now — please try again in a moment.", null);
+      actions.pushCopilotAI("I couldn't reach Copilot just now — please try again in a moment.", null, null);
     } finally {
       setThinking(false);
     }
+  };
+
+  const confirmAction = async () => {
+    if (!resolution || !resolution.ok) return;
+    setConfirming(true);
+    try {
+      const msg = await resolution.execute();
+      actions.pushCopilotAI(msg, null, null);
+      actions.showToast(msg);
+    } catch {
+      actions.pushCopilotAI("Something went wrong and I couldn't complete that — please try again.", null, null);
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const cancelAction = () => {
+    actions.clearPendingAction();
+    actions.pushCopilotAI('No problem — cancelled.', null, null);
   };
 
   const onSubmit = (e: FormEvent) => {
@@ -79,6 +108,27 @@ export function CopilotPanel() {
                 </div>
               </div>
             ))}
+          </div>
+        ) : null}
+        {state.copilotPendingAction && resolution ? (
+          <div style={st('background:var(--bg-brand-subtle);border:1px solid var(--border-brand);border-radius:14px;padding:13px')}>
+            {resolution.ok ? (
+              <>
+                <div style={st('font-size:13px;color:var(--fg-primary);font-weight:600;line-height:18px;margin-bottom:12px')}>{state.copilotPendingAction.summary}</div>
+                <div style={st('display:flex;gap:8px')}>
+                  <button
+                    onClick={confirmAction}
+                    disabled={confirming}
+                    style={st(`${btnPrimary};flex:1;padding:8px 10px;font-size:12.5px;text-align:center${confirming ? ';opacity:.65' : ''}`)}
+                  >
+                    {confirming ? 'Working…' : 'Confirm'}
+                  </button>
+                  <button onClick={cancelAction} disabled={confirming} style={st(`${btnSecondary};flex:1;padding:8px 10px;font-size:12.5px;text-align:center`)}>Cancel</button>
+                </div>
+              </>
+            ) : (
+              <div style={st('font-size:12.5px;color:var(--fg-secondary);line-height:18px')}>{resolution.error}</div>
+            )}
           </div>
         ) : null}
       </div>

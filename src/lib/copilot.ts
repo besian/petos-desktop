@@ -1,10 +1,12 @@
 import type { DB } from '../db/types';
 import type { CopilotResultRow } from '../ui/store';
 import { todayISO, addDays } from '../db/dates';
+import { ACTION_KINDS, type ProposedAction } from './copilotActions';
 
 export interface CopilotAnswer {
   text: string;
   rows: CopilotResultRow[] | null;
+  action: ProposedAction | null;
 }
 
 function amountOf(items: { amount: string }[]) {
@@ -24,6 +26,7 @@ function buildSnapshot(db: DB) {
 
   return {
     today,
+    clients: db.clients.map((c) => ({ name: c.name })),
     pets: db.pets.map((p) => ({
       name: p.name, breed: p.breed, owner: clientById.get(p.clientId)?.name || 'Unknown', color: p.color,
       alert: p.alert || undefined, notes: p.notes || undefined,
@@ -53,5 +56,9 @@ export async function askCopilot(db: DB, question: string): Promise<CopilotAnswe
     throw new Error(`Copilot request failed (${res.status})`);
   }
   const data = await res.json();
-  return { text: data.text, rows: data.rows ?? null };
+  // The model's "kind" isn't hard-enforced by the response schema (structured
+  // outputs describe the literal rather than constraining it), so validate
+  // it against the known action kinds before trusting it client-side.
+  const action: ProposedAction | null = data.action && ACTION_KINDS.includes(data.action.kind) ? data.action : null;
+  return { text: data.text, rows: data.rows ?? null, action };
 }

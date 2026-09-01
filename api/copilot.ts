@@ -24,14 +24,110 @@ const ResultRowSchema = z.object({
   sub: z.string().describe('A short detail line, e.g. an amount, a status, or a time.'),
 });
 
-const CopilotResponseSchema = z.object({
-  text: z.string().describe("The chat reply shown to the business owner. 1-3 sentences, friendly, concrete."),
-  rows: z.array(ResultRowSchema).nullable().describe('Up to 5 rows to list specific pets/clients/walkers/invoices the answer refers to. Null if the answer is a single fact with nothing to list.'),
+// Every action kind the owner can trigger by chatting with Copilot. Each
+// carries a human-readable `summary` — that's what's shown to the owner
+// with Confirm/Cancel buttons; the app never executes anything until they
+// tap Confirm, and resolves entity names against the *live* database
+// (not this snapshot) at that point, so exact-name matching here matters.
+const AddWalkAction = z.object({
+  kind: z.literal('add_walk'),
+  summary: z.string().describe('One-line confirmation summary, e.g. "Book Milo with Molos, tomorrow at 12:00 (30 min)".'),
+  petName: z.string().describe('Exact pet name as it appears in the snapshot.'),
+  walkerName: z.string().nullable().describe('Exact team member name as it appears in the snapshot, or null to leave unassigned.'),
+  date: z.string().describe('ISO date yyyy-mm-dd, resolved from any relative reference ("tomorrow", "next Monday") using the snapshot\'s "today" value.'),
+  time: z.string().describe('24-hour "HH:MM".'),
+  durationMin: z.union([z.literal(30), z.literal(45), z.literal(60)]).describe('Walk length in minutes; default 60 if not specified.'),
+  repeatWeekly: z.boolean().describe('True only if the owner asked for a recurring/weekly walk.'),
 });
 
-const SYSTEM_PROMPT = `You are PetOS Copilot, embedded in a dog-walking business management app. The owner will ask you questions about their business. You will be given a JSON snapshot of their current data (pets, clients, team, today's and this week's walks, outstanding invoices, pending reports).
+const CancelWalkAction = z.object({
+  kind: z.literal('cancel_walk'),
+  summary: z.string(),
+  petName: z.string(),
+  date: z.string().describe('ISO date yyyy-mm-dd of the walk to cancel.'),
+  time: z.string().nullable().describe('24-hour "HH:MM" if known, to disambiguate multiple walks that day.'),
+});
 
-Answer ONLY using facts present in the snapshot — never invent pets, clients, amounts, or walks that aren't in it. If the snapshot doesn't contain what's needed to answer, say so plainly rather than guessing. Keep the reply short (1-3 sentences) and concrete — real names and numbers, not generic advice. When the answer refers to specific pets, clients, walkers, or invoices, also populate "rows" (max 5) so the app can show them as a list; otherwise use rows: null.`;
+const RescheduleWalkAction = z.object({
+  kind: z.literal('reschedule_walk'),
+  summary: z.string(),
+  petName: z.string(),
+  fromDate: z.string().describe('ISO date yyyy-mm-dd of the existing walk.'),
+  fromTime: z.string().nullable(),
+  toDate: z.string().describe('ISO date yyyy-mm-dd to move it to.'),
+  toTime: z.string().nullable().describe('New time, or null to keep the same time.'),
+});
+
+const AddInvoiceAction = z.object({
+  kind: z.literal('add_invoice'),
+  summary: z.string(),
+  clientName: z.string().describe('Exact client name as it appears in the snapshot.'),
+  petName: z.string().nullable().describe('Exact pet name, if the owner mentioned one; otherwise null.'),
+  description: z.string().describe('Line item description, e.g. "Dog walking — 4 walks".'),
+  amount: z.number().describe('Total amount in pounds as a plain number, e.g. 72 for £72.00.'),
+  dueInDays: z.number().describe('Days until due; default 14 if not specified.'),
+  sendNow: z.boolean().describe('True only if the owner explicitly asked to send it now rather than just create a draft.'),
+});
+
+const MarkInvoicePaidAction = z.object({
+  kind: z.literal('mark_invoice_paid'),
+  summary: z.string(),
+  clientName: z.string().describe('Exact client name as it appears in the snapshot.'),
+  amount: z.number().nullable().describe('Approximate amount, if the owner mentioned one, to disambiguate between several unpaid invoices.'),
+});
+
+const AddClientAction = z.object({
+  kind: z.literal('add_client'),
+  summary: z.string(),
+  name: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  address: z.string().nullable(),
+});
+
+const AddPetAction = z.object({
+  kind: z.literal('add_pet'),
+  summary: z.string(),
+  name: z.string(),
+  breed: z.string().nullable(),
+  clientName: z.string().describe('Exact EXISTING client name from the snapshot that this pet belongs to.'),
+  plan: z.union([z.literal('Weekly'), z.literal('Fortnightly'), z.literal('Monthly')]),
+});
+
+const AddTeamMemberAction = z.object({
+  kind: z.literal('add_team_member'),
+  summary: z.string(),
+  name: z.string(),
+  role: z.string().nullable(),
+  area: z.string().nullable(),
+  phone: z.string().nullable(),
+  email: z.string().nullable(),
+});
+
+const ActionSchema = z.discriminatedUnion('kind', [
+  AddWalkAction, CancelWalkAction, RescheduleWalkAction,
+  AddInvoiceAction, MarkInvoicePaidAction,
+  AddClientAction, AddPetAction, AddTeamMemberAction,
+]);
+
+const CopilotResponseSchema = z.object({
+  text: z.string().describe("The chat reply shown to the business owner. 1-3 sentences, friendly, concrete."),
+  rows: z.array(ResultRowSchema).nullable().describe('Up to 5 rows to list specific pets/clients/walkers/invoices the answer refers to. Null if the answer is a single fact with nothing to list, or when "action" is set.'),
+  action: ActionSchema.nullable().describe('A single proposed change to the schedule, invoices, clients, pets, or team — ONLY when the owner\'s latest message clearly asked to create or change something, and only one action per reply. The app shows "summary" with Confirm/Cancel buttons and does NOT perform it until the owner confirms, so never say in "text" that it has already happened — phrase it as a proposal ("I\'ll ..."), not a completed fact. Null for plain questions, or when required details are missing (ask a clarifying question in "text" instead of guessing).'),
+});
+
+const SYSTEM_PROMPT = `You are PetOS Copilot, embedded in a dog-walking business management app. The owner will ask you questions about their business, or ask you to make changes. You will be given a JSON snapshot of their current data (pets, clients, team, today's and this week's walks, outstanding invoices, pending reports).
+
+Answer ONLY using facts present in the snapshot — never invent pets, clients, amounts, or walks that aren't in it. If the snapshot doesn't contain what's needed to answer, say so plainly rather than guessing. Keep the reply short (1-3 sentences) and concrete — real names and numbers, not generic advice. When the answer refers to specific pets, clients, walkers, or invoices, also populate "rows" (max 5) so the app can show them as a list; otherwise use rows: null.
+
+You can also PROPOSE changes (booking/cancelling/rescheduling a walk, creating an invoice or marking one paid, adding a client/pet/team member) via the "action" field — but you never perform them yourself. The app shows your proposal to the owner with Confirm/Cancel buttons, and only calls the real database write if they tap Confirm. So:
+- Set "action" only when the LATEST message is clearly a request to create or change something, not a question.
+- Only ever propose ONE action per reply.
+- Use the EXACT name for any pet/client/team member that already exists in the snapshot (for add_pet/add_invoice, this means the *client* they belong to must already exist there — don't invent a new client inline).
+- cancel_walk and reschedule_walk can only reference a walk that's actually visible in walksToday/walksThisWeek — if the owner refers to a date outside that window, don't propose an action; say you can't see that far ahead and to use the Schedule page.
+- Resolve any relative date/time ("tomorrow", "next Tuesday", "noon") into an ISO date (yyyy-mm-dd, using the snapshot's "today") and 24-hour time.
+- If required details are missing or ambiguous (e.g. which pet, which day), leave "action" null and ask a short clarifying question in "text" instead of guessing.
+- Phrase "text" as a proposal awaiting confirmation ("I'll book Milo with Molos tomorrow at 12:00 — confirm below."), never as something already done.`;
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
