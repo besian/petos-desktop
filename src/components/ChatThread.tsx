@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { st } from '../lib/st';
-import { fetchMessages, sendMessage, subscribeToThread, type SenderRole, type ThreadType } from '../lib/chat';
+import { fetchMessages, sendMessage, markThreadRead, subscribeToThread, type SenderRole, type ThreadType } from '../lib/chat';
 import type { ChatMessage } from '../db/types';
-import { SendIcon } from './icons';
+import { SendIcon, CheckIcon } from './icons';
 
 interface ChatThreadProps {
   ownerId: string;
@@ -18,6 +18,18 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+function formatDay(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (sameDay(d, today)) return 'Today';
+  if (sameDay(d, yesterday)) return 'Yesterday';
+  return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
 export function ChatThread({ ownerId, threadType, threadId, myRole, counterpartName }: ChatThreadProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,12 +41,23 @@ export function ChatThread({ ownerId, threadType, threadId, myRole, counterpartN
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchMessages(ownerId, threadType, threadId).then((msgs) => { if (!cancelled) { setMessages(msgs); setLoading(false); } });
-    const unsubscribe = subscribeToThread(ownerId, threadType, threadId, (m) => {
-      setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m]));
+    fetchMessages(ownerId, threadType, threadId).then((msgs) => {
+      if (cancelled) return;
+      setMessages(msgs);
+      setLoading(false);
+      markThreadRead(ownerId, threadType, threadId, myRole);
+    });
+    const unsubscribe = subscribeToThread(ownerId, threadType, threadId, (m, eventType) => {
+      setMessages((prev) => {
+        if (eventType === 'UPDATE') return prev.map((p) => (p.id === m.id ? m : p));
+        return prev.some((p) => p.id === m.id) ? prev : [...prev, m];
+      });
+      if (eventType === 'INSERT' && m.sender !== myRole) {
+        markThreadRead(ownerId, threadType, threadId, myRole);
+      }
     });
     return () => { cancelled = true; unsubscribe(); };
-  }, [ownerId, threadType, threadId]);
+  }, [ownerId, threadType, threadId, myRole]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,8 +72,14 @@ export function ChatThread({ ownerId, threadType, threadId, myRole, counterpartN
     const result = await sendMessage({ ownerId, threadType, threadId, sender: myRole, body });
     setSending(false);
     if (!result.ok) { setError(result.error || 'Could not send — please try again.'); return; }
+    if (result.message) {
+      const sent = result.message;
+      setMessages((prev) => (prev.some((p) => p.id === sent.id) ? prev : [...prev, sent]));
+    }
     setDraft('');
   };
+
+  let lastDay = '';
 
   return (
     <div style={st('display:flex;flex-direction:column;height:100%;min-height:0')}>
@@ -62,16 +91,32 @@ export function ChatThread({ ownerId, threadType, threadId, myRole, counterpartN
         ) : (
           messages.map((m) => {
             const mine = m.sender === myRole;
+            const day = formatDay(m.createdAt);
+            const showDivider = day !== lastDay;
+            lastDay = day;
             return (
-              <div key={m.id} style={st(mine ? 'display:flex;justify-content:flex-end' : 'display:flex;justify-content:flex-start')}>
-                <div style={st(`max-width:76%;display:flex;flex-direction:column;gap:3px;${mine ? 'align-items:flex-end' : 'align-items:flex-start'}`)}>
-                  <div style={st(mine
-                    ? 'background:var(--brand-primary);color:var(--brand-on-primary);border-radius:14px 14px 4px 14px;padding:10px 13px;font-size:13.5px;line-height:19px;font-weight:500'
-                    : 'background:var(--bg-tertiary);color:var(--fg-primary);border-radius:14px 14px 14px 4px;padding:10px 13px;font-size:13.5px;line-height:19px')}
-                  >
-                    {m.body}
+              <div key={m.id} style={st('display:flex;flex-direction:column;gap:10px')}>
+                {showDivider ? (
+                  <div style={st('text-align:center;font-size:11px;font-weight:600;color:var(--fg-quaternary);margin:4px 0')}>{day}</div>
+                ) : null}
+                <div style={st(mine ? 'display:flex;justify-content:flex-end' : 'display:flex;justify-content:flex-start')}>
+                  <div style={st(`max-width:76%;display:flex;flex-direction:column;gap:3px;${mine ? 'align-items:flex-end' : 'align-items:flex-start'}`)}>
+                    <div style={st(mine
+                      ? 'background:var(--brand-primary);color:var(--brand-on-primary);border-radius:14px 14px 4px 14px;padding:10px 13px;font-size:13.5px;line-height:19px;font-weight:500'
+                      : 'background:var(--bg-tertiary);color:var(--fg-primary);border-radius:14px 14px 14px 4px;padding:10px 13px;font-size:13.5px;line-height:19px')}
+                    >
+                      {m.body}
+                    </div>
+                    <span style={st('display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--fg-quaternary);padding:0 3px')}>
+                      {formatTime(m.createdAt)}
+                      {mine ? (
+                        <span style={st(`display:inline-flex;align-items:center;gap:2px;${m.readAt ? 'color:var(--fg-brand)' : ''}`)}>
+                          <CheckIcon size={11} />
+                          {m.readAt ? `Read ${formatTime(m.readAt)}` : 'Delivered'}
+                        </span>
+                      ) : null}
+                    </span>
                   </div>
-                  <span style={st('font-size:10.5px;color:var(--fg-quaternary);padding:0 3px')}>{formatTime(m.createdAt)}</span>
                 </div>
               </div>
             );

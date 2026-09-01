@@ -153,6 +153,7 @@ export interface ChatMessage {
   threadId: string;
   sender: 'owner' | 'client' | 'team';
   body: string;
+  readAt?: string | null;
   createdAt: string;
 }
 
